@@ -1,6 +1,6 @@
 {
   "name": "@johnneerdael/netskope-mcp",
-  "version": "5.2.0",
+  "version": "5.2.1",
   "description": "MCP server for Netskope's Zero Trust Network Access Platform management through LLM's",
   "type": "module",
   "bin": {
@@ -29,8 +29,13 @@
     "ztna",
     "modelcontextprotocol"
   ],
-  "files": ["dist"],
-  "repository": "github:johnneerdael/netskope-mcp",
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/johnneerdael/netskope-mcp.git"
+  },
   "homepage": "https://community.netskope.com",
   "author": "John Neerdael",
   "license": "ISC",
