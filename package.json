@@ -1,0 +1,49 @@
+{
+  "name": "@johnneerdael/netskope-mcp",
+  "version": "5.2.0",
+  "description": "MCP server for Netskope's Zero Trust Network Access Platform management through LLM's",
+  "type": "module",
+  "bin": {
+    "netskope-mcp": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/index.js",
+    "dev": "tsc -w",
+    "test": "vitest",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "bugs": {
+    "url": "https://github.com/johnneerdael/netskope-mcp/issues",
+    "email": "jneerdael@netskope.com"
+  },
+  "keywords": [
+    "netskope",
+    "mcp",
+    "api",
+    "ztna",
+    "modelcontextprotocol"
+  ],
+  "files": ["dist"],
+  "repository": "github:johnneerdael/netskope-mcp",
+  "homepage": "https://community.netskope.com",
+  "author": "John Neerdael",
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "latest",
+    "zod": "latest",
+    "rimraf": "^6.0.1",
+    "dotenv": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "latest",
+    "vitest": "latest",
+    "node": "^22.0.0"
+  }
+}
