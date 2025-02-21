@@ -7,7 +7,7 @@ A Model Context Protocol (MCP) server for managing Netskope Network Private Acce
 Still lots of work needs to be done for all 50 tools to be operational, i strongly advise against using this with any production environment
 
 ## Demonstration
-https://github.com/user-attachments/assets/61878042-861a-4262-bac8-17720a4b4bd8
+https://github.com/johnneerdael/netskope-mcp/raw/refs/heads/main/demo.mov
 
 ## Installation
 
