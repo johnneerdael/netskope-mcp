@@ -2,6 +2,10 @@
 
 A Model Context Protocol (MCP) server for managing Netskope Network Private Access (NPA) infrastructure through Large Language Models (LLMs).
 
+## Credits
+John Neerdael (Netskope Private Access Product Manager)
+Mitchell Pompe (Chief Netskope Solutions Engineer for NL)
+
 ## Warning
 
 Still lots of work needs to be done for all 50 tools to be operational, i strongly advise against using this with any production environment
