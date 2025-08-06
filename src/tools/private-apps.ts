@@ -4,9 +4,16 @@ import {
   privateAppUpdateRequestSchema,
   protocolSchema,
   tagSchema,
-  tagNoIdSchema
+  tagNoIdSchema,
+  publisherItemCreateSchema,
+  smartDeleteOptionsSchema,
+  deletionValidationResultSchema,
+  policyDependencyAnalysisSchema,
+  smartDeleteResultSchema,
+  privateAppIdSchema
 } from '../types/schemas/private-apps.schemas.js';
 import { api } from '../config/netskope-config.js';
+import { buildQuery, QueryOptions, FILTERABLE_FIELDS } from '../utils/query-builder.js';
 
 interface ApiResponse<T> {
   status: string;
@@ -56,18 +63,32 @@ interface PrivateAppsToolsType {
   list: {
     name: 'listPrivateApps';
     schema: z.ZodObject<{
-      fields: z.ZodOptional<z.ZodString>;
-      filter: z.ZodOptional<z.ZodString>;
-      query: z.ZodOptional<z.ZodString>;
       limit: z.ZodOptional<z.ZodNumber>;
       offset: z.ZodOptional<z.ZodNumber>;
+      query: z.ZodOptional<z.ZodString>;
+      app_name: z.ZodOptional<z.ZodString>;
+      publisher_name: z.ZodOptional<z.ZodString>;
+      reachable: z.ZodOptional<z.ZodBoolean>;
+      clientless_access: z.ZodOptional<z.ZodBoolean>;
+      use_publisher_dns: z.ZodOptional<z.ZodBoolean>;
+      host: z.ZodOptional<z.ZodString>;
+      in_steering: z.ZodOptional<z.ZodBoolean>;
+      in_policy: z.ZodOptional<z.ZodBoolean>;
+      private_app_protocol: z.ZodOptional<z.ZodString>;
     }>;
     handler: (params: { 
-      fields?: string;
-      filter?: string;
-      query?: string;
       limit?: number;
       offset?: number;
+      query?: string;
+      app_name?: string;
+      publisher_name?: string;
+      reachable?: boolean;
+      clientless_access?: boolean;
+      use_publisher_dns?: boolean;
+      host?: string;
+      in_steering?: boolean;
+      in_policy?: boolean;
+      private_app_protocol?: string;
     }) => Promise<{ content: [{ type: 'text'; text: string }] }>;
   };
   getTags: {
@@ -134,14 +155,65 @@ export const PrivateAppsTools: PrivateAppsToolsType = {
     name: 'createPrivateApp',
     schema: privateAppRequestSchema,
     handler: async (params: z.infer<typeof privateAppRequestSchema>) => {
-      const result = await api.requestWithRetry(
-        '/api/v2/steering/apps/private',
-        {
-          method: 'POST',
-          body: JSON.stringify(params)
+      try {
+        // Validate app_type specific requirements
+        const appType = params.app_type || 'client'; // Default to client for backward compatibility
+        
+        if (appType === 'clientless') {
+          // Clientless validation
+          if (Array.isArray(params.host)) {
+            throw new Error('Clientless applications only support a single host address');
+          }
+          
+          // For clientless apps, we allow TCP/UDP protocols as the API transforms them
+          // based on hostType (http/https). The actual browser protocols are derived
+          // from the hostType field in the API payload.
+          
+          // Ensure clientless_access is true for clientless apps
+          if (!params.clientless_access) {
+            throw new Error('Clientless applications must have clientless_access enabled');
+          }
+        } else if (appType === 'client') {
+          // Client type validation
+          const hasClientProtocol = params.protocols.some(p => 
+            ['tcp', 'udp'].includes(p.type)
+          );
+          
+          if (!hasClientProtocol) {
+            throw new Error('Client applications require network protocols (tcp, udp)');
+          }
         }
-      );
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+
+        // Transform params for API compatibility
+        const apiPayload = {
+          ...params,
+          protocols: params.protocols.map(p => ({
+            type: p.type,
+            ports: [p.port]
+          })),
+          // Map trust_self_signed_certs to isSelfSignedCert
+          isSelfSignedCert: params.trust_self_signed_certs,
+          // Add hostType based on protocol for clientless apps
+          ...(appType === 'clientless' && {
+            hostType: params.protocols.some(p => p.type === 'https') ? 'https' : 'http'
+          })
+        };
+        
+        // Remove the original field to avoid conflicts
+        delete (apiPayload as any).trust_self_signed_certs;
+
+        const result = await api.requestWithRetry(
+          '/api/v2/steering/apps/private',
+          {
+            method: 'POST',
+            body: JSON.stringify(apiPayload)
+          }
+        );
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        throw new Error(`Failed to create private app: ${errorMessage}`);
+      }
     }
   },
 
@@ -149,14 +221,65 @@ export const PrivateAppsTools: PrivateAppsToolsType = {
     name: 'updatePrivateApp',
     schema: privateAppUpdateRequestSchema,
     handler: async (params: z.infer<typeof privateAppUpdateRequestSchema>) => {
-      const result = await api.requestWithRetry(
-        `/api/v2/steering/apps/private/${params.id}`,
-        {
-          method: 'PUT',
-          body: JSON.stringify(params)
+      try {
+        // Validate app_type specific requirements
+        const appType = params.app_type || 'client'; // Default to client for backward compatibility
+        
+        if (appType === 'clientless') {
+          // Clientless validation
+          if (Array.isArray(params.host)) {
+            throw new Error('Clientless applications only support a single host address');
+          }
+          
+          // For clientless apps, we allow TCP/UDP protocols as the API transforms them
+          // based on hostType (http/https). The actual browser protocols are derived
+          // from the hostType field in the API payload.
+          
+          // Ensure clientless_access is true for clientless apps
+          if (!params.clientless_access) {
+            throw new Error('Clientless applications must have clientless_access enabled');
+          }
+        } else if (appType === 'client') {
+          // Client type validation
+          const hasClientProtocol = params.protocols.some(p => 
+            ['tcp', 'udp'].includes(p.type)
+          );
+          
+          if (!hasClientProtocol) {
+            throw new Error('Client applications require network protocols (tcp, udp)');
+          }
         }
-      );
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+
+        // Transform params for API compatibility
+        const apiPayload = {
+          ...params,
+          protocols: params.protocols.map(p => ({
+            type: p.type,
+            ports: [p.port]
+          })),
+          // Map trust_self_signed_certs to isSelfSignedCert
+          isSelfSignedCert: params.trust_self_signed_certs,
+          // Add hostType based on protocol for clientless apps
+          ...(appType === 'clientless' && {
+            hostType: params.protocols.some(p => p.type === 'https') ? 'https' : 'http'
+          })
+        };
+        
+        // Remove the original field to avoid conflicts
+        delete (apiPayload as any).trust_self_signed_certs;
+
+        const result = await api.requestWithRetry(
+          `/api/v2/steering/apps/private/${params.id}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify(apiPayload)
+          }
+        );
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        throw new Error(`Failed to update private app: ${errorMessage}`);
+      }
     }
   },
 
@@ -186,29 +309,77 @@ export const PrivateAppsTools: PrivateAppsToolsType = {
   list: {
     name: 'listPrivateApps',
     schema: z.object({
-      fields: z.string().optional(),
-      filter: z.string().optional(),
-      query: z.string().optional(),
       limit: z.number().optional(),
-      offset: z.number().optional()
+      offset: z.number().optional(),
+      query: z.string().optional(),
+      // Individual field filters
+      app_name: z.string().optional(),
+      publisher_name: z.string().optional(),
+      reachable: z.boolean().optional(),
+      clientless_access: z.boolean().optional(),
+      use_publisher_dns: z.boolean().optional(),
+      host: z.string().optional(),
+      in_steering: z.boolean().optional(),
+      in_policy: z.boolean().optional(),
+      private_app_protocol: z.string().optional()
     }),
     handler: async (params: { 
-      fields?: string;
-      filter?: string;
-      query?: string;
       limit?: number;
       offset?: number;
+      query?: string;
+      app_name?: string;
+      publisher_name?: string;
+      reachable?: boolean;
+      clientless_access?: boolean;
+      use_publisher_dns?: boolean;
+      host?: string;
+      in_steering?: boolean;
+      in_policy?: boolean;
+      private_app_protocol?: string;
     }) => {
       const queryParams = new URLSearchParams();
-      if (params.fields) queryParams.set('fields', params.fields);
-      if (params.filter) queryParams.set('filter', params.filter);
-      if (params.query) queryParams.set('query', params.query);
       if (params.limit) queryParams.set('limit', String(params.limit));
       if (params.offset) queryParams.set('offset', String(params.offset));
+      
+      // Build query string from individual fields or use provided query
+      let queryString = params.query;
+      
+      // Auto-format simple queries for better UX
+      if (queryString && !queryString.includes(' ')) {
+        // If it's a simple string without operators, assume it's an app name search
+        queryString = `app_name has ${queryString}`;
+      }
+      
+      // Validate query syntax if provided
+      if (queryString) {
+        const { validateQuery } = await import('../utils/query-builder.js');
+        const validation = validateQuery(queryString);
+        if (!validation.valid) {
+          throw new Error(`Invalid query syntax: ${validation.errors.join(', ')}`);
+        }
+      }
+      
+      if (!queryString) {
+        // Extract filterable fields from params
+        const filterOptions: QueryOptions = {};
+        Object.keys(FILTERABLE_FIELDS).forEach(field => {
+          const value = params[field as keyof typeof params];
+          if (value !== undefined) {
+            filterOptions[field as keyof QueryOptions] = value as any;
+          }
+        });
+        
+        // Build query if we have filter options
+        if (Object.keys(filterOptions).length > 0) {
+          queryString = buildQuery(filterOptions);
+        }
+      }
+      
+      if (queryString) queryParams.set('query', queryString);
 
-      const result = await api.requestWithRetry(
-        `/api/v2/steering/apps/private?${queryParams}`
-      );
+      const finalUrl = `/api/v2/steering/apps/private?${queryParams}`;
+      
+      const result = await api.requestWithRetry(finalUrl);
       return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
   },
@@ -334,6 +505,67 @@ export const PrivateAppsTools: PrivateAppsToolsType = {
         }
       );
       return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+    }
+  }
+};
+
+/**
+ * Smart Delete Tools for MCP integration
+ * These tools integrate with command functions for intelligent deletion
+ */
+export const SmartPrivateAppsTools = {
+  validateDeletion: {
+    name: 'validatePrivateAppDeletion',
+    schema: z.object({ 
+      id: z.string().describe('Unique identifier of the private application'),
+      includeAnalysis: z.boolean().default(true).describe('Include detailed policy analysis')
+    }),
+    handler: async ({ id, includeAnalysis }: { id: string; includeAnalysis?: boolean }) => {
+      // This will be handled by the command layer
+      // The MCP tool acts as a passthrough to the command implementation
+      const { validateDeletionSafety } = await import('../commands/private-apps/index.js');
+      const validation = await validateDeletionSafety(id);
+      return {
+        content: [{ 
+          type: 'text' as const, 
+          text: JSON.stringify(validation) 
+        }]
+      };
+    }
+  },
+  
+  analyzeDependencies: {
+    name: 'analyzePrivateAppPolicyDependencies',
+    schema: z.object({ 
+      appName: z.string().describe('Name of the private application to analyze')
+    }),
+    handler: async ({ appName }: { appName: string }) => {
+      const { analyzePolicyDependencies } = await import('../commands/private-apps/index.js');
+      const analysis = await analyzePolicyDependencies(appName);
+      return {
+        content: [{ 
+          type: 'text' as const, 
+          text: JSON.stringify(analysis) 
+        }]
+      };
+    }
+  },
+  
+  smartDelete: {
+    name: 'deletePrivateAppSmart',
+    schema: z.object({
+      id: z.string().describe('Unique identifier of the private application'),
+      options: smartDeleteOptionsSchema.optional().describe('Smart deletion options')
+    }),
+    handler: async ({ id, options = {} }: { id: string; options?: Partial<z.infer<typeof smartDeleteOptionsSchema>> }) => {
+      const { deletePrivateAppSmart } = await import('../commands/private-apps/index.js');
+      const result = await deletePrivateAppSmart(id, smartDeleteOptionsSchema.parse(options));
+      return {
+        content: [{ 
+          type: 'text' as const, 
+          text: JSON.stringify(result) 
+        }]
+      };
     }
   }
 };

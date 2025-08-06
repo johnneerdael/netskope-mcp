@@ -38,7 +38,7 @@ export async function createPolicyRule(
       conditions: []
     });
 
-    const result = await PolicyTools.createRule.handler(params);
+    const result = await PolicyTools.createPolicyRule.handler(params);
     const data = JSON.parse(result.content[0].text);
     
     if (data.status !== 'success') {
@@ -57,7 +57,7 @@ export async function createPolicyRule(
 export async function updatePolicyRule(id: number, updates: Partial<NPAPolicyRequest>) {
   try {
     // Get existing rule first
-    const existingResult = await PolicyTools.getRule.handler({ id });
+    const existingResult = await PolicyTools.getPolicyRule.handler({ id });
     const existingData = JSON.parse(existingResult.content[0].text).data;
     
     // Merge existing data with updates
@@ -74,7 +74,7 @@ export async function updatePolicyRule(id: number, updates: Partial<NPAPolicyReq
       name: updates.name || existingData.name
     });
 
-    const result = await PolicyTools.updateRule.handler({
+    const result = await PolicyTools.updatePolicyRule.handler({
       id: params.id,
       data: params
     });
@@ -97,7 +97,7 @@ export async function deletePolicyRule(id: number) {
   try {
     const params = policyRuleIdSchema.parse({ id });
 
-    const result = await PolicyTools.deleteRule.handler(params);
+    const result = await PolicyTools.deletePolicyRule.handler(params);
     const data = JSON.parse(result.content[0].text);
     
     if (data.status !== 'success') {
@@ -117,7 +117,7 @@ export async function getPolicyRule(id: number) {
   try {
     const params = policyRuleIdSchema.parse({ id });
 
-    const result = await PolicyTools.getRule.handler(params);
+    const result = await PolicyTools.getPolicyRule.handler(params);
     const data = JSON.parse(result.content[0].text);
     
     if (data.status !== 'success') {
@@ -142,7 +142,7 @@ export async function listPolicyRules(options: {
   try {
     const params = listPolicyRulesSchema.parse(options);
 
-    const result = await PolicyTools.listRules.handler(params);
+    const result = await PolicyTools.listPolicyRules.handler(params);
     const data = JSON.parse(result.content[0].text);
     
     if (data.status !== 'success') {
@@ -160,29 +160,9 @@ export async function listPolicyRules(options: {
 
 // Export command definitions for MCP server
 export const policyCommands = {
-  createPolicyRule: {
-    name: 'createPolicyRule',
-    schema: createPolicyRuleSchema,
-    handler: createPolicyRule
-  },
-  updatePolicyRule: {
-    name: 'updatePolicyRule',
-    schema: updatePolicyRuleSchema,
-    handler: updatePolicyRule
-  },
-  deletePolicyRule: {
-    name: 'deletePolicyRule',
-    schema: policyRuleIdSchema,
-    handler: deletePolicyRule
-  },
-  getPolicyRule: {
-    name: 'getPolicyRule',
-    schema: policyRuleIdSchema,
-    handler: getPolicyRule
-  },
-  listPolicyRules: {
-    name: 'listPolicyRules',
-    schema: listPolicyRulesSchema,
-    handler: listPolicyRules
-  }
+  createPolicyRule: PolicyTools.createPolicyRule,
+  updatePolicyRule: PolicyTools.updatePolicyRule,
+  deletePolicyRule: PolicyTools.deletePolicyRule,
+  getPolicyRule: PolicyTools.getPolicyRule,
+  listPolicyRules: PolicyTools.listPolicyRules
 };

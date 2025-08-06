@@ -3,21 +3,40 @@ import { PrivateAppsTools } from '../../tools/private-apps.js';
 import {
   privateAppRequestSchema,
   privateAppUpdateRequestSchema,
+  smartDeleteOptionsSchema,
+  policyDependencyAnalysisSchema,
+  deletionValidationResultSchema,
+  smartDeleteResultSchema,
+  privateAppIdSchema as privateAppIdSchemaImport,
   Protocol,
-  TagNoId
+  TagNoId,
+  SmartDeleteOptions,
+  PolicyDependencyAnalysis,
+  DeletionValidationResult,
+  SmartDeleteResult
 } from '../../types/schemas/private-apps.schemas.js';
+import { PolicyTools } from '../../tools/policy.js';
+import { listPolicyRules, updatePolicyRule, deletePolicyRule, getPolicyRule } from '../policy/index.js';
 
 // Command schemas with descriptions
 const createPrivateAppSchema = privateAppRequestSchema;
 const updatePrivateAppSchema = privateAppUpdateRequestSchema;
-const privateAppIdSchema = z.object({
-  id: z.string().describe('Unique identifier of the private app')
-});
+const privateAppIdSchema = privateAppIdSchemaImport;
 const listPrivateAppsSchema = z.object({
   limit: z.number().optional().describe('Maximum number of apps to return'),
   offset: z.number().optional().describe('Number of apps to skip'),
   filter: z.string().optional().describe('Filter expression'),
-  query: z.string().optional().describe('Search query')
+  query: z.string().optional().describe('Raw query string with complex syntax'),
+  // Add specific field searches
+  app_name: z.string().optional().describe('Filter by application name'),
+  publisher_name: z.string().optional().describe('Filter by publisher name'),
+  reachable: z.boolean().optional().describe('Filter by reachability status'),
+  clientless_access: z.boolean().optional().describe('Filter by clientless access'),
+  use_publisher_dns: z.boolean().optional().describe('Filter by DNS usage'),
+  host: z.string().optional().describe('Filter by host address'),
+  in_steering: z.boolean().optional().describe('Filter by steering status'),
+  in_policy: z.boolean().optional().describe('Filter by policy status'),
+  private_app_protocol: z.string().optional().describe('Filter by protocol')
 }).describe('Options for listing private apps');
 
 const listTagsSchema = z.object({
@@ -54,18 +73,24 @@ export async function createPrivateApp(
   name: string,
   host: string,
   protocol: Protocol,
-  port: string | number
+  port: string | number,
+  appType?: 'clientless' | 'client'
 ) {
   try {
+    // Determine app type based on protocol if not explicitly provided
+    const isClientless = appType === 'clientless' || 
+                         (appType === undefined && ['http', 'https', 'rdp', 'ssh'].includes(protocol.type));
+    
     const params = createPrivateAppSchema.parse({
       app_name: name,
       host,
+      app_type: isClientless ? 'clientless' : 'client',
       protocols: [{
         port: typeof port === 'number' ? port.toString() : port,
         type: protocol.type
       }],
       publishers: [],
-      clientless_access: false,
+      clientless_access: isClientless,
       is_user_portal_app: false,
       trust_self_signed_certs: false,
       use_publisher_dns: false
@@ -119,7 +144,7 @@ export async function updatePrivateApp(
   }
 }
 
-export async function deletePrivateApp(id: string) {
+export async function deletePrivateApp({ id }: { id: string }) {
   try {
     const params = privateAppIdSchema.parse({ id });
 
@@ -139,7 +164,7 @@ export async function deletePrivateApp(id: string) {
   }
 }
 
-export async function getPrivateApp(id: string) {
+export async function getPrivateApp({ id }: { id: string }) {
   try {
     const params = privateAppIdSchema.parse({ id });
 
@@ -159,23 +184,67 @@ export async function getPrivateApp(id: string) {
   }
 }
 
+// Helper function for internal use that returns parsed data
+async function listPrivateAppsInternal(options: {
+  limit?: number;
+  offset?: number;
+  filter?: string;
+  query?: string;
+  app_name?: string;
+  publisher_name?: string;
+  reachable?: boolean;
+  clientless_access?: boolean;
+  use_publisher_dns?: boolean;
+  host?: string;
+  in_steering?: boolean;
+  in_policy?: boolean;
+  private_app_protocol?: string;
+} = {}) {
+  // Convert old command-style params to tool-style params
+  const toolParams = {
+    limit: options.limit,
+    offset: options.offset,
+    query: options.query,
+    app_name: options.app_name,
+    publisher_name: options.publisher_name,
+    reachable: options.reachable,
+    clientless_access: options.clientless_access,
+    use_publisher_dns: options.use_publisher_dns,
+    host: options.host,
+    in_steering: options.in_steering,
+    in_policy: options.in_policy,
+    private_app_protocol: options.private_app_protocol
+  };
+  
+  const result = await PrivateAppsTools.list.handler(toolParams);
+  const data = JSON.parse(result.content[0].text);
+  
+  if (data.status !== 'success') {
+    throw new Error(data.message || 'Failed to list private apps');
+  }
+  
+  return data.data.private_apps || data.data;
+}
+
 export async function listPrivateApps(options: {
   limit?: number;
   offset?: number;
   filter?: string;
   query?: string;
+  app_name?: string;
+  publisher_name?: string;
+  reachable?: boolean;
+  clientless_access?: boolean;
+  use_publisher_dns?: boolean;
+  host?: string;
+  in_steering?: boolean;
+  in_policy?: boolean;
+  private_app_protocol?: string;
 } = {}) {
   try {
     const params = listPrivateAppsSchema.parse(options);
-
     const result = await PrivateAppsTools.list.handler(params);
-    const data = JSON.parse(result.content[0].text);
-    
-    if (data.status !== 'success') {
-      throw new Error(data.message || 'Failed to list private apps');
-    }
-    
-    return data.data;
+    return result;
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to list private apps: ${error.message}`);
@@ -340,12 +409,371 @@ export async function getPolicyInUse(ids: string[]) {
   }
 }
 
+/**
+ * Analyzes policy dependencies for a private application by name
+ * Checks both direct app references and tag-based references
+ */
+export async function analyzePolicyDependencies(appName: string): Promise<PolicyDependencyAnalysis> {
+  try {
+    // Get all policy rules to analyze dependencies
+    const policies = await listPolicyRules();
+    
+    // Find the app to get its tags
+    const apps = await listPrivateAppsInternal();
+    const app = apps.find((a: any) => a.app_name === appName);
+    
+    if (!app) {
+      throw new Error(`App with name ${appName} not found`);
+    }
+    
+    const appTags = app.tags || [];
+    const affectedPolicies: any[] = [];
+    let hasDirectReferences = false;
+    let hasTagBasedReferences = false;
+    
+    // Analyze each policy for references to this app
+    for (const policy of policies) {
+      if (!policy.rule_data) continue;
+      
+      const { privateApps = [], privateAppTags = [], privateAppsWithActivities = [] } = policy.rule_data;
+      
+      // Check for direct app reference in privateApps
+      const hasDirectRef = privateApps.includes(appName);
+      
+      // Check for direct app reference in privateAppsWithActivities
+      const hasActivitiesRef = privateAppsWithActivities.some((appWithActivity: any) => 
+        appWithActivity.appName === appName
+      );
+      
+      // Check for tag-based reference
+      const hasTagRef = privateAppTags.some((policyTag: string) =>
+        appTags.some((appTag: any) => appTag.tag_name === policyTag)
+      );
+      
+      if (hasDirectRef || hasActivitiesRef || hasTagRef) {
+        let referenceType: 'direct' | 'tag' | 'mixed';
+        const hasAnyDirectRef = hasDirectRef || hasActivitiesRef;
+        
+        if (hasAnyDirectRef && hasTagRef) {
+          referenceType = 'mixed';
+        } else if (hasAnyDirectRef) {
+          referenceType = 'direct';
+          hasDirectReferences = true;
+        } else {
+          referenceType = 'tag';
+          hasTagBasedReferences = true;
+        }
+        
+        // Determine if this policy can be safely cleaned up
+        const otherApps = privateApps.filter((appname: string) => appname !== appName);
+        const otherActivities = privateAppsWithActivities.filter((appWithActivity: any) => 
+          appWithActivity.appName !== appName
+        );
+        const canSafelyRemove = referenceType === 'direct' && 
+                               otherApps.length === 0 && 
+                               otherActivities.length === 0 && 
+                               privateAppTags.length === 0;
+        
+        affectedPolicies.push({
+          policyId: policy.rule_id.toString(),
+          policyName: policy.rule_name || `Policy ${policy.rule_id}`,
+          referenceType,
+          canSafelyRemove,
+          requiresManualCleanup: referenceType === 'tag' || referenceType === 'mixed'
+        });
+      }
+    }
+    
+    return {
+      hasDirectReferences,
+      hasTagBasedReferences,
+      affectedPolicies
+    };
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to analyze policy dependencies: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Validates whether a private app can be safely deleted
+ * Performs comprehensive safety checks including policy dependencies
+ */
+export async function validateDeletionSafety(id: string): Promise<DeletionValidationResult> {
+  try {
+    // Get app details
+    const app = await getPrivateApp({ id });
+    
+    // Analyze policy dependencies
+    const policyAnalysis = await analyzePolicyDependencies(app.app_name);
+    
+    const warnings: string[] = [];
+    const blockers: string[] = [];
+    const recommendations: string[] = [];
+    
+    // Check if app has policy dependencies
+    if (policyAnalysis.affectedPolicies.length > 0) {
+      if (policyAnalysis.hasDirectReferences) {
+        warnings.push(`App is directly referenced in ${policyAnalysis.affectedPolicies.filter(p => p.referenceType === 'direct' || p.referenceType === 'mixed').length} policies`);
+      }
+      
+      if (policyAnalysis.hasTagBasedReferences) {
+        warnings.push(`App is referenced through tags in ${policyAnalysis.affectedPolicies.filter(p => p.referenceType === 'tag' || p.referenceType === 'mixed').length} policies`);
+      }
+      
+      // Check for policies that can be safely removed
+      const autoCleanupPolicies = policyAnalysis.affectedPolicies.filter(p => p.canSafelyRemove);
+      if (autoCleanupPolicies.length > 0) {
+        recommendations.push(`${autoCleanupPolicies.length} policies can be automatically cleaned up`);
+      }
+      
+      // Check for policies requiring manual intervention
+      const manualPolicies = policyAnalysis.affectedPolicies.filter(p => p.requiresManualCleanup);
+      if (manualPolicies.length > 0) {
+        recommendations.push(`Review ${manualPolicies.length} policies that require manual cleanup`);
+        recommendations.push('Consider using force=true to proceed with deletion');
+      }
+      
+      // Only consider it a blocker if no automatic cleanup is possible
+      if (autoCleanupPolicies.length === 0 && policyAnalysis.affectedPolicies.length > 0) {
+        blockers.push('App has policy dependencies that cannot be automatically cleaned up');
+      }
+    }
+    
+    // Check publisher assignments
+    if (app.service_publisher_assignments?.length > 0) {
+      warnings.push(`App has ${app.service_publisher_assignments.length} publisher assignments`);
+    }
+    
+    return {
+      isValid: blockers.length === 0,
+      warnings,
+      blockers,
+      recommendations
+    };
+  } catch (error) {
+    return {
+      isValid: false,
+      warnings: [],
+      blockers: [`Failed to validate app: ${error instanceof Error ? error.message : 'Unknown error'}`],
+      recommendations: ['Verify app exists and is accessible']
+    };
+  }
+}
+
+/**
+ * Handles cleanup of direct app references in policies
+ * Removes the app from policy or deletes entire policy if it becomes empty
+ */
+async function handleDirectAppReference(policy: any, appName: string): Promise<{ action: string; policyId: string }> {
+  const { privateApps = [], privateAppTags = [], privateAppsWithActivities = [] } = policy.rule_data;
+  const updatedApps = privateApps.filter((app: string) => app !== appName);
+  const updatedActivities = privateAppsWithActivities.filter((appWithActivity: any) => 
+    appWithActivity.appName !== appName
+  );
+  
+  // If this was the only app and no tags, delete the entire policy
+  if (updatedApps.length === 0 && updatedActivities.length === 0 && privateAppTags.length === 0) {
+    await deletePolicyRule(parseInt(policy.rule_id, 10));
+    return { action: 'deleted_policy', policyId: policy.rule_id.toString() };
+  }
+  
+  // Otherwise update policy to remove the app from all references
+  const updatedRuleData = {
+    ...policy.rule_data,
+    privateApps: updatedApps,
+    privateAppsWithActivities: updatedActivities
+  };
+  
+  await updatePolicyRule(parseInt(policy.rule_id, 10), {
+    ...policy,
+    rule_data: updatedRuleData
+  });
+  
+  return { action: 'updated_policy', policyId: policy.rule_id.toString() };
+}
+
+/**
+ * Handles cleanup of tag-based references in policies
+ * Only removes tags if no other apps use them
+ */
+async function handleTagBasedReference(policy: any, appTags: any[]): Promise<{ action: string; policyId: string; requiresManualReview?: boolean }> {
+  // For tag-based references, we need to be careful about removing tags
+  // as other apps might use the same tags
+  
+  // Get all apps to check if other apps use these tags
+  const allApps = await listPrivateAppsInternal();
+  const tagNames = appTags.map(tag => tag.tag_name);
+  
+  // Check if any other apps use these tags
+  const otherAppsWithTags = allApps.filter((app: any) => 
+    app.tags?.some((tag: any) => tagNames.includes(tag.tag_name))
+  );
+  
+  // If no other apps use these tags, we can safely remove them from the policy
+  if (otherAppsWithTags.length <= 1) { // <= 1 because the current app might still be in the list
+    const { privateAppTags = [] } = policy.rule_data;
+    const updatedTags = privateAppTags.filter((policyTag: string) =>
+      !tagNames.includes(policyTag)
+    );
+    
+    const updatedRuleData = {
+      ...policy.rule_data,
+      privateAppTags: updatedTags
+    };
+    
+    await updatePolicyRule(parseInt(policy.rule_id, 10), {
+      ...policy,
+      rule_data: updatedRuleData
+    });
+    
+    return { action: 'updated_policy', policyId: policy.rule_id.toString() };
+  }
+  
+  // Tags are still used by other apps, manual review required
+  return { 
+    action: 'requires_manual_review', 
+    policyId: policy.rule_id.toString(),
+    requiresManualReview: true 
+  };
+}
+
+/**
+ * Cleans up policy references for a private app
+ * Handles both direct app references and tag-based references
+ */
+async function cleanupPolicyReferences(appName: string, appTags: any[]): Promise<{ cleanedPolicies: any[]; warnings: string[] }> {
+  const policyAnalysis = await analyzePolicyDependencies(appName);
+  const cleanedPolicies: any[] = [];
+  const warnings: string[] = [];
+  
+  for (const policyInfo of policyAnalysis.affectedPolicies) {
+    try {
+      // Get the full policy data
+      const policy = await getPolicyRule(parseInt(policyInfo.policyId, 10));
+      
+      let result;
+      
+      switch (policyInfo.referenceType) {
+        case 'direct':
+          result = await handleDirectAppReference(policy, appName);
+          break;
+        case 'tag':
+          result = await handleTagBasedReference(policy, appTags);
+          break;
+        case 'mixed':
+          // Handle direct reference first, then tags
+          result = await handleDirectAppReference(policy, appName);
+          if (result.action === 'updated_policy') {
+            // Also handle tag references if policy still exists
+            const tagResult = await handleTagBasedReference(policy, appTags);
+            if (tagResult.requiresManualReview) {
+              warnings.push(`Policy ${policyInfo.policyName} requires manual review for tag cleanup`);
+            }
+          }
+          break;
+      }
+      
+      cleanedPolicies.push({
+        policyId: policyInfo.policyId,
+        policyName: policyInfo.policyName,
+        action: result.action === 'deleted_policy' ? 'deleted' : 'updated'
+      });
+      
+      if (result.action === 'requires_manual_review') {
+        warnings.push(`Policy ${policyInfo.policyName} requires manual review`);
+      }
+      
+    } catch (error) {
+      warnings.push(`Failed to cleanup policy ${policyInfo.policyName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+  
+  return { cleanedPolicies, warnings };
+}
+
+/**
+ * Intelligently deletes a private application with comprehensive policy cleanup
+ * Supports dry-run mode, force deletion, and automatic policy cleanup
+ */
+export async function deletePrivateAppSmart(
+  id: string, 
+  options: Partial<SmartDeleteOptions> = {}
+): Promise<SmartDeleteResult> {
+  // Parse and apply defaults using the schema
+  const parsedOptions = smartDeleteOptionsSchema.parse(options);
+  const { force, cleanupOrphanedPolicies, dryRun } = parsedOptions;
+  
+  try {
+    // Step 1: Get app details and validate
+    const app = await getPrivateApp({ id });
+    const validation = await validateDeletionSafety(id);
+    
+    // Step 2: Check if deletion is safe
+    if (!validation.isValid && !force) {
+      throw new Error(`Cannot delete app safely: ${validation.blockers.join(', ')}. Use force=true to override.`);
+    }
+    
+    // Step 3: Dry run mode - return preview of actions
+    if (dryRun) {
+      const policyAnalysis = await analyzePolicyDependencies(app.app_name);
+      
+      return {
+        success: true,
+        appId: id,
+        appName: app.app_name,
+        cleanedPolicies: [],
+        dryRunPreview: {
+          wouldDeleteApp: true,
+          wouldCleanupPolicies: policyAnalysis.affectedPolicies.map(p => p.policyName),
+          warnings: validation.warnings
+        }
+      };
+    }
+    
+    // Step 4: Execute policy cleanup if requested
+    let cleanedPolicies: any[] = [];
+    const allWarnings: string[] = [...validation.warnings];
+    
+    if (cleanupOrphanedPolicies) {
+      const cleanupResult = await cleanupPolicyReferences(app.app_name, app.tags || []);
+      cleanedPolicies = cleanupResult.cleanedPolicies;
+      allWarnings.push(...cleanupResult.warnings);
+    }
+    
+    // Step 5: Validate that cleanup was successful
+    const postCleanupValidation = await analyzePolicyDependencies(app.app_name);
+    if (postCleanupValidation.affectedPolicies.length > 0 && !force) {
+      const remainingPolicies = postCleanupValidation.affectedPolicies.map(p => p.policyName).join(', ');
+      throw new Error(`Failed to clean up all policy references. Remaining policies: ${remainingPolicies}. Use force=true to proceed anyway.`);
+    }
+    
+    // Step 6: Execute the actual app deletion
+    await deletePrivateApp({ id });
+    
+    return {
+      success: true,
+      appId: id,
+      appName: app.app_name,
+      cleanedPolicies
+    };
+    
+  } catch (error) {
+    throw new Error(`Smart delete failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
 // Export command definitions for MCP server
 export const privateAppCommands = {
   createPrivateApp: {
     name: 'createPrivateApp',
     schema: createPrivateAppSchema,
-    handler: createPrivateApp
+    handler: async (params: any) => {
+      const result = await PrivateAppsTools.create.handler(params);
+      return result;
+    }
   },
   updatePrivateApp: {
     name: 'updatePrivateApp',
@@ -364,7 +792,7 @@ export const privateAppCommands = {
   },
   listPrivateApps: {
     name: 'listPrivateApps',
-    schema: listPrivateAppsSchema,
+    schema: PrivateAppsTools.list.schema,
     handler: listPrivateApps
   },
   listPrivateAppTags: {
@@ -401,5 +829,24 @@ export const privateAppCommands = {
     name: 'getPolicyInUse',
     schema: getPolicyInUseSchema,
     handler: getPolicyInUse
+  },
+  validatePrivateAppDeletion: {
+    name: 'validatePrivateAppDeletion',
+    schema: privateAppIdSchema,
+    handler: async (params: { id: string }) => validateDeletionSafety(params.id)
+  },
+  analyzePolicyDependencies: {
+    name: 'analyzePrivateAppPolicyDependencies',
+    schema: z.object({ appName: z.string().describe('Name of the private application') }),
+    handler: async (params: { appName: string }) => analyzePolicyDependencies(params.appName)
+  },
+  deletePrivateAppSmart: {
+    name: 'deletePrivateAppSmart',
+    schema: z.object({
+      id: z.string().describe('Unique identifier of the private application'),
+      options: smartDeleteOptionsSchema.optional().describe('Smart deletion options')
+    }),
+    handler: async (params: { id: string; options?: Partial<SmartDeleteOptions> }) => 
+      deletePrivateAppSmart(params.id, params.options)
   }
 };

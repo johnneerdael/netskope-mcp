@@ -23,9 +23,10 @@ export class UpgradeProfileCommand extends ResourceCommand<
       list: {
         handler: async () => {
           const result = await UpgradeProfileTools.list.handler();
+          const parsed = JSON.parse(result.content[0].text);
           return {
             content: result.content,
-            data: result.data
+            data: parsed.data
           };
         }
       },
@@ -33,9 +34,10 @@ export class UpgradeProfileCommand extends ResourceCommand<
         handler: async (params) => {
           if (!params?.id) throw new Error('ID is required');
           const result = await UpgradeProfileTools.get.handler({ id: params.id });
+          const parsed = JSON.parse(result.content[0].text);
           return {
             content: result.content,
-            data: result.data
+            data: parsed.data
           };
         }
       },
@@ -43,9 +45,10 @@ export class UpgradeProfileCommand extends ResourceCommand<
         handler: async (params) => {
           if (!params) throw new Error('Data is required');
           const result = await UpgradeProfileTools.create.handler(params);
+          const parsed = JSON.parse(result.content[0].text);
           return {
             content: result.content,
-            data: result.data
+            data: parsed.data
           };
         }
       },
@@ -53,9 +56,10 @@ export class UpgradeProfileCommand extends ResourceCommand<
         handler: async (params) => {
           if (!params) throw new Error('Data is required');
           const result = await UpgradeProfileTools.update.handler(params);
+          const parsed = JSON.parse(result.content[0].text);
           return {
             content: result.content,
-            data: result.data
+            data: parsed.data
           };
         }
       },
@@ -63,9 +67,10 @@ export class UpgradeProfileCommand extends ResourceCommand<
         handler: async (params) => {
           if (!params?.id) throw new Error('ID is required');
           const result = await UpgradeProfileTools.delete.handler({ id: params.id });
+          const parsed = JSON.parse(result.content[0].text);
           return {
             content: result.content,
-            data: result.data
+            data: parsed.data
           };
         }
       }

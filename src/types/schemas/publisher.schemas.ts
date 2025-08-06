@@ -58,7 +58,7 @@ export const publisherPutRequestSchema = z.object({
 }).describe('Request to update a publisher');
 
 export const publisherPatchRequestSchema = z.object({
-  name: z.string().describe('Display name for the publisher'),
+  name: z.string().optional().describe('Optional display name for the publisher'),
   id: z.number().optional().describe('Optional publisher identifier'),
   lbrokerconnect: z.boolean().optional().describe('Optional local broker connection'),
   publisher_upgrade_profiles_id: z.number().optional().describe('Optional upgrade profile assignment')
