@@ -5,7 +5,7 @@ export async function createPolicyRule(
   groupId: string,
   enabled: boolean = true
 ) {
-  const result = await PolicyTools.createRule.handler({
+  const result = await PolicyTools.createPolicyRule.handler({
     name,
     policy_group_id: parseInt(groupId, 10),
     enabled,

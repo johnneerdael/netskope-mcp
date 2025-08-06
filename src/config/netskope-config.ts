@@ -16,9 +16,9 @@ export const configSchema = z.object({
 export type Config = z.infer<typeof configSchema>;
 
 const defaultConfig: Partial<Config> = {
-  timeout: 30000,
-  retryAttempts: 3,
-  retryDelay: 1000,
+  timeout: 10000, // Reduced from 30s to 10s
+  retryAttempts: 1, // Reduced from 3 to 1 for faster debugging
+  retryDelay: 500, // Reduced from 1000ms to 500ms
   cacheTTL: 300,
   cacheSize: 1000
 };
@@ -26,7 +26,7 @@ const defaultConfig: Partial<Config> = {
 export function loadConfig(): Config {
   const config = {
     baseUrl: process.env.NETSKOPE_BASE_URL,
-    apiToken: process.env.NETSKOPE_API_KEY,
+    apiToken: process.env.NETSKOPE_API_TOKEN || process.env.NETSKOPE_API_KEY,
     timeout: parseInt(process.env.NETSKOPE_TIMEOUT ?? String(defaultConfig.timeout)),
     retryAttempts: parseInt(process.env.NETSKOPE_RETRY_ATTEMPTS ?? String(defaultConfig.retryAttempts)),
     retryDelay: parseInt(process.env.NETSKOPE_RETRY_DELAY ?? String(defaultConfig.retryDelay)),
@@ -63,6 +63,7 @@ export class ApiClient {
   }
 
   async request<T>(path: string, options: RequestInit = {}): Promise<T> {
+    const startTime = Date.now();
     const cacheKey = this.getCacheKey(path, options);
     
     if (options.method === 'GET') {
@@ -77,8 +78,11 @@ export class ApiClient {
     headers.set('Authorization', `Bearer ${this.config.apiToken}`);
     headers.set('Content-Type', 'application/json');
 
+
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, this.config.timeout);
 
     try {
       const response = await fetch(url.toString(), {
@@ -86,6 +90,7 @@ export class ApiClient {
         headers,
         signal: controller.signal
       });
+
 
       if (!response.ok) {
         throw new Error(`API request failed: ${response.status} ${response.statusText}`);
@@ -103,6 +108,8 @@ export class ApiClient {
       }
       
       return data;
+    } catch (error) {
+      throw error;
     } finally {
       clearTimeout(timeoutId);
     }

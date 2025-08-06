@@ -101,8 +101,8 @@ export const PolicyTools = {
   },
 
   // Policy Rule Operations
-  listRules: {
-    name: 'listRules',
+  listPolicyRules: {
+    name: 'listPolicyRules',
     schema: z.object({
       fields: z.string().optional(),
       filter: z.string().optional(),
@@ -119,23 +119,28 @@ export const PolicyTools = {
       sortby?: string;
       sortorder?: string;
     }) => {
-      const queryParams = new URLSearchParams();
-      if (params.fields) queryParams.set('fields', params.fields);
-      if (params.filter) queryParams.set('filter', params.filter);
-      if (params.limit) queryParams.set('limit', String(params.limit));
-      if (params.offset) queryParams.set('offset', String(params.offset));
-      if (params.sortby) queryParams.set('sortby', params.sortby);
-      if (params.sortorder) queryParams.set('sortorder', params.sortorder);
+      try {
+        const queryParams = new URLSearchParams();
+        if (params.fields) queryParams.set('fields', params.fields);
+        if (params.filter) queryParams.set('filter', params.filter);
+        if (params.limit) queryParams.set('limit', String(params.limit));
+        if (params.offset) queryParams.set('offset', String(params.offset));
+        if (params.sortby) queryParams.set('sortby', params.sortby);
+        if (params.sortorder) queryParams.set('sortorder', params.sortorder);
 
-      const result = await api.requestWithRetry<ApiResponse<NPAPolicyResponse>>(
-        `/api/v2/policy/npa/rules${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
-      );
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+        const url = `/api/v2/policy/npa/rules${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+        
+        const result = await api.requestWithRetry<ApiResponse<NPAPolicyResponse>>(url);
+        
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+      } catch (error) {
+        throw error;
+      }
     }
   },
 
-  getRule: {
-    name: 'getRule',
+  getPolicyRule: {
+    name: 'getPolicyRule',
     schema: z.object({
       id: z.number(),
       fields: z.string().optional()
@@ -149,8 +154,8 @@ export const PolicyTools = {
     }
   },
 
-  createRule: {
-    name: 'createRule',
+  createPolicyRule: {
+    name: 'createPolicyRule',
     schema: npaPolicyRequestSchema,
     handler: async (params: NPAPolicyRequest) => {
       const silent = false;
@@ -166,8 +171,8 @@ export const PolicyTools = {
     }
   },
 
-  updateRule: {
-    name: 'updateRule',
+  updatePolicyRule: {
+    name: 'updatePolicyRule',
     schema: z.object({
       id: z.number(),
       data: npaPolicyRequestSchema
@@ -186,8 +191,8 @@ export const PolicyTools = {
     }
   },
 
-  deleteRule: {
-    name: 'deleteRule',
+  deletePolicyRule: {
+    name: 'deletePolicyRule',
     schema: z.object({
       id: z.number()
     }),
