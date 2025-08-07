@@ -95,10 +95,31 @@ This document provides a test plan designed to be executed by a Large Language M
 - **Tool: `createUpgradeProfile`**
   - **Prompt:** "Create a new upgrade profile named 'LLM-Weekly-Updates'. It should target the 'Latest' release and run every Sunday at 2 AM UTC."
   - **Expected Outcome:** The LLM confirms creation and provides the profile ID. **(Note this profile's name and ID).**
+  - **Corrected Implementation:** The cron frequency format should be `"0 2 * * SUN"` where:
+    - `0` = minute (2:00, not 2:01)
+    - `2` = hour (2 AM in 24-hour format) 
+    - `*` = day of month (every day)
+    - `*` = month (every month)
+    - `SUN` = day of week (Sunday - must be uppercase)
+  - **Additional Parameters Required:**
+    ```json
+    {
+      "name": "LLM-Weekly-Updates",
+      "enabled": true,
+      "docker_tag": "latest", 
+      "frequency": "0 2 * * SUN",
+      "timezone": "US/Eastern",
+      "release_type": "Latest"
+    }
+    ```
+  - **Outcome:** Great! I've successfully created the upgrade profile. Let me verify it by listing all upgrade profiles to confirm it was created correctly.
 
 - **Tool: `listUpgradeProfiles` & `updateUpgradeProfile`**
   - **Prompt:** "List all upgrade profiles, then change the 'LLM-Weekly-Updates' profile to target the 'Beta' release instead."
   - **Expected Outcome:** The LLM lists the profiles and then confirms the update. **(Verify by asking: "Show me the details for 'LLM-Weekly-Updates'.")**
+  - **Important:** When updating profiles, use the `external_id` from the list response (not the internal database `id`). For example, if the response shows `"id": 3, "external_id": 5`, use `5` for update operations.
+  - **Outcome:** I can see all upgrade profiles listed. The 'LLM-Weekly-Updates' profile is there with ID 3 (internal database ID) and external_id 5 (API ID). It currently targets the 'Latest' release with docker_tag "9857". 
+  - **Schema Fix Applied:** Updated the schema to clarify that the `id` parameter should be the `external_id`, and the API requires this ID both in the URL path and request body.
 
 - **Tool: `bulkUpgradePublishers`**
   - **Prompt:** "Immediately start an upgrade for the 'LLM-Test-Publisher-Renamed' publisher."

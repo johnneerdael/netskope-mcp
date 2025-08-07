@@ -927,12 +927,12 @@ export NETSKOPE_API_KEY="your-production-token"
     {
       data: {
         upgrade_profiles: Array<{
-          id: number,
-          external_id: number,
+          id: number,                 // Internal database ID (for reference only)
+          external_id: number,        // External API ID (use this for get/update/delete operations)
           name: string,
           docker_tag: string,
           enabled: boolean,
-          frequency: string,          // Cron format: minute hour day * DAY_OF_WEEK
+          frequency: string,          // Cron format: "minute hour * * DAY_OF_WEEK" (e.g., "0 2 * * SUN")
           timezone: string,           // Standard timezone identifier
           release_type: 'Beta' | 'Latest' | 'Latest-1' | 'Latest-2',
           created_at: string,
@@ -955,7 +955,7 @@ export NETSKOPE_API_KEY="your-production-token"
 - **getUpgradeProfile**
   - **Description**: Retrieves detailed information about a specific upgrade profile, including its schedule and configuration.
   - **Required Parameters**:
-    - `id`: Numeric identifier of the upgrade profile
+    - `id`: External ID of the upgrade profile (use `external_id` from list response, not the internal database `id`)
   - **Response Schema**: Same as individual profile in list_upgrade_profiles
   - **Usage Examples**:
     1. "Verify settings: Check specific profile configuration before an upgrade window."
@@ -970,11 +970,22 @@ export NETSKOPE_API_KEY="your-production-token"
       name: string,                  // Profile name
       enabled: boolean,              // Profile status
       docker_tag: string,            // Docker image tag for upgrade
-      frequency: string,             // Cron schedule format
+      frequency: string,             // Cron schedule format: "minute hour * * DAY_OF_WEEK"
       timezone: string,              // Timezone for schedule
       release_type: 'Beta' | 'Latest' | 'Latest-1' | 'Latest-2'
     }
     ```
+  - **Cron Format Details**:
+    - Format: `"minute hour * * DAY_OF_WEEK"`
+    - `minute`: 0-59 (or * for every minute)
+    - `hour`: 0-23 (or * for every hour) 
+    - Day of month: Must be `*`
+    - Month: Must be `*`
+    - `DAY_OF_WEEK`: SUN, MON, TUE, WED, THU, FRI, SAT (or 0-6)
+    - **Examples**:
+      - `"0 2 * * SUN"` = Every Sunday at 2:00 AM
+      - `"30 14 * * FRI"` = Every Friday at 2:30 PM
+      - `"0 0 * * MON"` = Every Monday at midnight
   - **Usage Examples**:
     1. "Schedule maintenance: Create a profile for regular off-hours upgrades."
     2. "Beta testing: Set up a profile for testing new releases on selected publishers."
@@ -983,13 +994,30 @@ export NETSKOPE_API_KEY="your-production-token"
 - **updateUpgradeProfile**
   - **Description**: Updates an existing upgrade profile's configuration, allowing modification of schedule, release type, and other settings.
   - **Required Parameters**:
-    - `id`: Profile identifier
-    - `data`: Updated profile configuration (same schema as create_upgrade_profile)
+    - `id`: External ID of the profile (use `external_id` from list response, not the internal database `id`)
+    - Profile configuration data (same schema as create_upgrade_profile)
+  - **Important Note**: The API requires both the external_id in the URL path AND in the request body's `id` field
+  - **Example Request**:
+    ```json
+    {
+      "id": 5,  // This is the external_id, not the internal database id
+      "name": "Updated-Profile-Name",
+      "enabled": true,
+      "docker_tag": "9858",
+      "frequency": "0 2 * * SUN",
+      "timezone": "Atlantic/Azores",
+      "release_type": "Beta"
+    }
+    ```
   - **Response Schema**:
     ```typescript
     {
       data: {
-        // Updated profile details (same as get_upgrade_profile response)
+        id: number,           // Internal database ID
+        external_id: number,  // External API ID (use this for future operations)
+        name: string,
+        enabled: boolean,
+        // ... other profile details
       },
       status: 'success' | 'not found'
     }
@@ -1002,7 +1030,7 @@ export NETSKOPE_API_KEY="your-production-token"
 - **deleteUpgradeProfile**
   - **Description**: Removes an upgrade profile from your configuration. Use with caution as this affects automated upgrade scheduling.
   - **Required Parameters**:
-    - `id`: Numeric identifier of the profile to delete
+    - `id`: External ID of the profile to delete (use `external_id` from list response, not the internal database `id`)
   - **Response Schema**:
     ```typescript
     {

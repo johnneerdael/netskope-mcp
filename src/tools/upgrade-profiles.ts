@@ -28,7 +28,7 @@ export const UpgradeProfileTools = {
   get: {
     name: 'getUpgradeProfile',
     schema: z.object({
-      id: z.number()
+      id: z.number().describe('External ID (use external_id from list response, not the internal database ID)')
     }),
     handler: async (params: { id: number }) => {
       const result = await api.requestWithRetry(
@@ -64,8 +64,10 @@ export const UpgradeProfileTools = {
       const { id, ...data } = params;
       const normalizedData = {
         ...data,
+        id, // Include the external_id in the request body
         frequency: normalizeCronExpression(data.frequency)
       };
+      // Use the external_id in the URL path
       const result = await api.requestWithRetry(
         `/api/v2/infrastructure/publisherupgradeprofiles/${id}`,
         {
@@ -80,7 +82,7 @@ export const UpgradeProfileTools = {
   delete: {
     name: 'deleteUpgradeProfile',
     schema: z.object({
-      id: z.number()
+      id: z.number().describe('External ID (use external_id from list response, not the internal database ID)')
     }),
     handler: async (params: { id: number }) => {
       const result = await api.requestWithRetry(

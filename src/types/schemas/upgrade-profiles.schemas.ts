@@ -6,17 +6,69 @@ export const upgradeProfilePostRequestSchema = z.object({
   name: z.string(),
   enabled: z.boolean(),
   docker_tag: z.string(),
-  frequency: z.string().regex(/^[0-9*]+ [0-9*]+ [0-9*]+ [*] [A-Z,]+$/, 'Must be in cron format: minute hour day * DAY_OF_WEEK'),
+  frequency: z.string()
+    .describe('Cron expression in format "minute hour * * DAY_OF_WEEK" (e.g., "0 2 * * SUN" for Sunday at 2 AM)')
+    .refine((value) => {
+      try {
+        const parts = value.trim().split(' ');
+        if (parts.length !== 5) return false;
+        const [minute, hour, day, month, dayOfWeek] = parts;
+        
+        // Check minute (0-59 or *)
+        if (minute !== '*' && (isNaN(parseInt(minute)) || parseInt(minute) < 0 || parseInt(minute) > 59)) return false;
+        
+        // Check hour (0-23 or *)
+        if (hour !== '*' && (isNaN(parseInt(hour)) || parseInt(hour) < 0 || parseInt(hour) > 23)) return false;
+        
+        // Day and month must be *
+        if (day !== '*' || month !== '*') return false;
+        
+        // Check day of week (0-6, SUN-SAT, sun-sat)
+        const validDays = ['0', '1', '2', '3', '4', '5', '6', 'SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+        const upperDayOfWeek = dayOfWeek.toUpperCase();
+        return validDays.includes(dayOfWeek) || validDays.includes(upperDayOfWeek);
+      } catch {
+        return false;
+      }
+    }, {
+      message: 'Must be in cron format: "minute hour * * DAY_OF_WEEK" where DAY_OF_WEEK is SUN-SAT or 0-6. Example: "0 2 * * SUN" for Sunday at 2 AM UTC'
+    }),
   timezone: timezoneSchema,
   release_type: releaseTypeSchema
 });
 
 export const upgradeProfilePutRequestSchema = z.object({
-  id: z.number(),
+  id: z.number().describe('External ID (not the internal database ID) - use external_id from the profile response'),
   name: z.string(),
   enabled: z.boolean(),
   docker_tag: z.string(),
-  frequency: z.string().regex(/^[0-9*]+ [0-9*]+ [0-9*]+ [*] [A-Z,]+$/, 'Must be in cron format: minute hour day * DAY_OF_WEEK'),
+  frequency: z.string()
+    .describe('Cron expression in format "minute hour * * DAY_OF_WEEK" (e.g., "0 2 * * SUN" for Sunday at 2 AM)')
+    .refine((value) => {
+      try {
+        const parts = value.trim().split(' ');
+        if (parts.length !== 5) return false;
+        const [minute, hour, day, month, dayOfWeek] = parts;
+        
+        // Check minute (0-59 or *)
+        if (minute !== '*' && (isNaN(parseInt(minute)) || parseInt(minute) < 0 || parseInt(minute) > 59)) return false;
+        
+        // Check hour (0-23 or *)
+        if (hour !== '*' && (isNaN(parseInt(hour)) || parseInt(hour) < 0 || parseInt(hour) > 23)) return false;
+        
+        // Day and month must be *
+        if (day !== '*' || month !== '*') return false;
+        
+        // Check day of week (0-6, SUN-SAT, sun-sat)
+        const validDays = ['0', '1', '2', '3', '4', '5', '6', 'SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+        const upperDayOfWeek = dayOfWeek.toUpperCase();
+        return validDays.includes(dayOfWeek) || validDays.includes(upperDayOfWeek);
+      } catch {
+        return false;
+      }
+    }, {
+      message: 'Must be in cron format: "minute hour * * DAY_OF_WEEK" where DAY_OF_WEEK is SUN-SAT or 0-6. Example: "0 2 * * SUN" for Sunday at 2 AM UTC'
+    }),
   timezone: timezoneSchema,
   release_type: releaseTypeSchema
 });
