@@ -19,13 +19,13 @@ This document provides a test plan designed to be executed by a Large Language M
   - **Outcome**: The name '[docker-aws]' is not valid for a private app because it already exists in the system. The validation tool returned an error message indicating that a private app with this name already exists.
 
 
-- **Tool: `searchResources`**
+- **Tool: `searchPublishers`**
   - **Prompt:** "Search for any publishers with 'prod' in their name."
   - **Expected Outcome:** The LLM should return a list of matching publishers or state that none were found.
-  - **Outcome:** The search was successful but returned no results - there are no publishers whose names start with "prod".
-  - **Prompt:** "Search for any publishers whose name starts with 'prod'"
-  - **Expected Outcome:** The LLM should return a list of matching publishers or state that none were found.
   - **Outcome:** The search was successful but returned no results - there are no publishers whose names contain "prod".
+  - **Prompt:** "Search for any publishers whose name starts with 'LLM'"
+  - **Expected Outcome:** The LLM should return a list of matching publishers or state that none were found.
+  - **Outcome:** Successfully found 2 publishers with 'LLM' in their names: 'LLM-Test-Publisher-Renamed' (ID: 105) and 'LLM-Backup-Publisher' (ID: 109).
 ---
 
 ## 2. Publisher and Upgrade Management
@@ -169,34 +169,29 @@ This document provides a test plan designed to be executed by a Large Language M
   - **Prompt:** "Create a new policy rule named 'Allow-Admin-Access-to-LLM-App'. It should allow access to the 'LLM-Test-App' for the 'Admins' user group. It should belong to the default policy group."
   - **Expected Outcome:** The LLM confirms the rule creation. **(Note this rule's name and ID).**
   - **Implementation Notes:**
-    - **Private App Reference**: Use the app ID (361) rather than name for `private_app_ids: ["361"]`
+    - **Private App Reference**: Use `private_app_names: ["LLM-Test-App"]` with display names
     - **User Groups**: Use SCIM display names like `"Network Administrators"` rather than UUIDs
     - **Available Groups**: "Developers", "Executives", "Network Administrators", "financial-contractor", "netskope-all"
-    - **Corrected Parameters**:
-      ```json
-      {
-        "name": "Allow-Admin-Access-to-LLM-App",
-        "description": "Allow Network Administrators access to LLM-Test-App",
-        "enabled": true,
-        "action": "allow", 
-        "policy_group_id": 7,
-        "private_app_ids": ["361"],
-        "user_groups": ["Network Administrators"],
-        "access_methods": ["Client", "Clientless"]
-      }
-      ```
+    - **API Schema**: Netskope expects `privateApps` field with app display names, not IDs
+  - **Outcome:** Successfully created policy rule 'Allow-Admin-Access-to-LLM-App' with ID 157. The rule allows the 'Network Administrators' user group access to the '[LLM-Test-App]' private application through both Client and Clientless access methods. Note: Used 'Network Administrators' group instead of 'Admins' as the 'Admins' group was not found in the available SCIM groups.
 
 - **Tool: `listRules` & `getRule`**
   - **Prompt:** "List all policy rules, and then show me the details of the 'Allow-Admin-Access-to-LLM-App' rule."
   - **Expected Outcome:** The LLM lists the rules and then shows the detailed configuration of the new rule.
+  - **Outcome:** Successfully listed all policy rules and retrieved the details for 'Allow-Admin-Access-to-LLM-App' (ID: 157). The rule is enabled and configured to allow the 'Network Administrators' user group access to the '[LLM-Test-App]' private application through both Client and Clientless access methods. The rule was created on 2025-08-07 20:29:12.
 
 - **Tool: `updateRule`**
   - **Prompt:** "Disable the 'Allow-Admin-Access-to-LLM-App' policy rule for now."
   - **Expected Outcome:** The LLM confirms the rule has been disabled. **(Verify by asking for the rule's details again).**
+  - **Outcome:** Successfully disabled the 'Allow-Admin-Access-to-LLM-App' policy rule (ID: 157). The rule status was changed from enabled to disabled at 2025-08-07 20:32:40. Verification confirmed that the rule is now disabled (enabled: "0").
 
-- **Tool: `getPolicyInUse`**
+- **Tool: `searchPrivateApps` & `getPolicyInUse`**
   - **Prompt:** "Which policies are currently applied to the 'LLM-Test-App'?"
   - **Expected Outcome:** The LLM lists the policies affecting the application, including the one just created.
+  - **Outcome:** Successfully found that one policy is currently applied to 'LLM-Test-App':
+    - **Policy Name**: Allow-Admin-Access-to-LLM-App  
+    - **Policy ID**: 157
+  - **Implementation Note:** The LLM now correctly uses a simple two-step approach: (1) Uses `searchPrivateApps` with name "LLM-Test-App" to find the app ID (361), then (2) Uses `getPolicyInUse` with the app ID to get the policy information. The new dedicated search tools make this much simpler than the previous `listPrivateApps` approach.
 
 ---
 
@@ -222,13 +217,9 @@ This document provides a test plan designed to be executed by a Large Language M
 
 ---
 
-## 6. Diagnostics and Monitoring
+## 6. Monitoring and Alerts
 
-**Objective:** Test the tools for troubleshooting and monitoring the environment.
-
-- **Tool: `getUserDiagnostics`**
-  - **Prompt:** "A user, 'test@example.com', is having trouble connecting. Can you run diagnostics for them?"
-  - **Expected Outcome:** The LLM provides a diagnostics report for the user.
+**Objective:** Test the tools for monitoring the environment.
 
 - **Tool: `getAlertConfig` & `updateAlertConfig`**
   - **Prompt:** "Who receives alerts for publisher events? Please add 'ops-team@example.com' to the list of notified admin users."
@@ -241,9 +232,18 @@ This document provides a test plan designed to be executed by a Large Language M
 **Objective:** Return the environment to its original state by removing all test resources.
 
 - **Prompt 1:** "Delete the policy rule named 'Allow-Admin-Access-to-LLM-App'."
+  - **Outcome:** Successfully deleted policy rule with ID 157. The deletion was confirmed with a successful status response.
+
 - **Prompt 2:** "Now, delete the private application named 'LLM-Test-App'."
+  - **Outcome:** Successfully deleted private application with ID 361. Search confirmed the application no longer exists in the system.
+
 - **Prompt 3:** "Next, please remove the upgrade profile called 'LLM-Weekly-Updates'."
+  - **Outcome:** The upgrade profile 'LLM-Weekly-Updates' (external_id: 5) was found in the system and succesfully deleted
+
 - **Prompt 4:** "Go ahead and delete the publisher named 'LLM-Test-Publisher-Renamed'."
+  - **Outcome:** Successfully deleted publisher 'LLM-Test-Publisher-Renamed' with ID 105. The deletion was confirmed with a successful status response.
+
 - **Prompt 5:** "Finally, please delete the local broker named 'LLM-DC-Broker-01'."
+  - **Outcome:** No local broker named 'LLM-DC-Broker-01' was found in the system. The only local broker present is 'VMWARE-LOCALBROKER' with ID 10.
 
 **Expected Outcome for all cleanup prompts:** The LLM confirms the deletion of each resource sequentially.

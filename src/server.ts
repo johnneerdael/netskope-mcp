@@ -11,6 +11,7 @@ import { steeringCommands } from './commands/steering/index.js';
 import { validationCommands } from './commands/validation/index.js';
 import { upgradeProfileCommands } from './commands/upgrade/index.js';
 import { scimCommands } from './commands/scim/index.js';
+import { SearchTools } from './tools/search.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -127,6 +128,15 @@ export class NetskopeServer {
         command.name,
         command.schema instanceof z.ZodObject ? command.schema.shape : {},
         command.handler
+      );
+    });
+
+    // Register search tools
+    Object.entries(SearchTools).forEach(([_, tool]: [string, any]) => {
+      this.server.tool(
+        tool.name,
+        tool.schema instanceof z.ZodObject ? tool.schema.shape : {},
+        tool.handler
       );
     });
   }

@@ -29,6 +29,11 @@ const searchGroupsSchema = z.object({
   count: z.number().optional().describe('Number of results to return')
 }).describe('Options for searching SCIM groups');
 
+const getAdminUsersSchema = z.object({
+  startIndex: z.number().optional().describe('Starting index for pagination'),
+  count: z.number().optional().describe('Number of results to return')
+}).describe('Options for getting admin users');
+
 // Command implementations
 export async function listUsers(options: {
   filter?: string;
@@ -129,10 +134,34 @@ export async function searchGroups(options: {
   }
 }
 
+export async function getAdminUsers(options: {
+  startIndex?: number;
+  count?: number;
+} = {}) {
+  try {
+    const params = getAdminUsersSchema.parse(options);
+    
+    const result = await SCIMTools.getAdminUsers.handler(params);
+    const data = JSON.parse(result.content[0].text);
+    
+    if (data.status === 'error') {
+      throw new Error(data.message || 'Failed to get admin users');
+    }
+    
+    return data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to get admin users: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
 // Export command definitions for MCP server
 export const scimCommands = {
   listUsers: SCIMTools.listUsers,
   searchUsers: SCIMTools.searchUsers,
   listGroups: SCIMTools.listGroups,
-  searchGroups: SCIMTools.searchGroups
+  searchGroups: SCIMTools.searchGroups,
+  getAdminUsers: SCIMTools.getAdminUsers
 };

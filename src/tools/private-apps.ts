@@ -31,7 +31,7 @@ interface BulkTagsParams {
 }
 
 interface PublishersParams {
-  private_app_ids: string[];
+  private_app_names: string[];
   publisher_ids: string[];
 }
 
@@ -128,7 +128,7 @@ interface PrivateAppsToolsType {
   updatePublishers: {
     name: 'updatePrivateAppPublishers';
     schema: z.ZodObject<{
-      private_app_ids: z.ZodArray<z.ZodString>;
+      private_app_names: z.ZodArray<z.ZodString>;
       publisher_ids: z.ZodArray<z.ZodString>;
     }>;
     handler: (params: PublishersParams) => Promise<{ content: [{ type: 'text'; text: string }] }>;
@@ -136,7 +136,7 @@ interface PrivateAppsToolsType {
   deletePublishers: {
     name: 'deletePrivateAppPublishers';
     schema: z.ZodObject<{
-      private_app_ids: z.ZodArray<z.ZodString>;
+      private_app_names: z.ZodArray<z.ZodString>;
       publisher_ids: z.ZodArray<z.ZodString>;
     }>;
     handler: (params: PublishersParams) => Promise<{ content: [{ type: 'text'; text: string }] }>;
@@ -152,6 +152,13 @@ interface PrivateAppsToolsType {
       ids: z.ZodArray<z.ZodString>;
     }>;
     handler: (params: PolicyParams) => Promise<{ content: [{ type: 'text'; text: string }] }>;
+  };
+  getTagPolicyInUse: {
+    name: 'getTagPolicyInUse';
+    schema: z.ZodObject<{
+      ids: z.ZodArray<z.ZodString>;
+    }>;
+    handler: (params: { ids: string[] }) => Promise<{ content: [{ type: 'text'; text: string }] }>;
   };
 }
 
@@ -362,9 +369,9 @@ export const PrivateAppsTools: PrivateAppsToolsType = {
     schema: z.object({
       limit: z.number().optional(),
       offset: z.number().optional(),
-      query: z.string().optional(),
+      query: z.string().optional().describe('Search query to find apps by name. Use this to find app IDs when you only have app names. Example: "LLM-Test-App" will find "[LLM-Test-App]"'),
       // Individual field filters
-      app_name: z.string().optional(),
+      app_name: z.string().optional().describe('Exact app name match (use query parameter for flexible searching)'),
       publisher_name: z.string().optional(),
       reachable: z.boolean().optional(),
       clientless_access: z.boolean().optional(),
@@ -373,7 +380,7 @@ export const PrivateAppsTools: PrivateAppsToolsType = {
       in_steering: z.boolean().optional(),
       in_policy: z.boolean().optional(),
       private_app_protocol: z.string().optional()
-    }),
+    }).describe('List private applications. Use the query parameter to search for apps by name (supports partial matches), then use the app_id from results in other tools like getPolicyInUse.'),
     handler: async (params: { 
       limit?: number;
       offset?: number;
@@ -498,15 +505,34 @@ export const PrivateAppsTools: PrivateAppsToolsType = {
   updatePublishers: {
     name: 'updatePrivateAppPublishers',
     schema: z.object({
-      private_app_ids: z.array(z.string()),
+      private_app_names: z.array(z.string()),
       publisher_ids: z.array(z.string())
     }),
     handler: async (params: PublishersParams) => {
+      // Convert app names to IDs
+      const appIds = await Promise.all(
+        params.private_app_names.map(async (appName) => {
+          const apps = await api.requestWithRetry('/api/v2/steering/apps/private', {
+            method: 'GET'
+          }) as any;
+          const app = apps.data?.private_apps?.find((a: any) => a.app_name === appName);
+          if (!app) {
+            throw new Error(`Private app '${appName}' not found`);
+          }
+          return app.app_id.toString();
+        })
+      );
+      
+      const apiParams = {
+        private_app_ids: appIds,
+        publisher_ids: params.publisher_ids
+      };
+      
       const result = await api.requestWithRetry(
         '/api/v2/steering/apps/private/publishers',
         {
           method: 'PUT',
-          body: JSON.stringify(params)
+          body: JSON.stringify(apiParams)
         }
       );
       return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
@@ -516,15 +542,34 @@ export const PrivateAppsTools: PrivateAppsToolsType = {
   deletePublishers: {
     name: 'deletePrivateAppPublishers',
     schema: z.object({
-      private_app_ids: z.array(z.string()),
+      private_app_names: z.array(z.string()),
       publisher_ids: z.array(z.string())
     }),
     handler: async (params: PublishersParams) => {
+      // Convert app names to IDs
+      const appIds = await Promise.all(
+        params.private_app_names.map(async (appName) => {
+          const apps = await api.requestWithRetry('/api/v2/steering/apps/private', {
+            method: 'GET'
+          }) as any;
+          const app = apps.data?.private_apps?.find((a: any) => a.app_name === appName);
+          if (!app) {
+            throw new Error(`Private app '${appName}' not found`);
+          }
+          return app.app_id.toString();
+        })
+      );
+      
+      const apiParams = {
+        private_app_ids: appIds,
+        publisher_ids: params.publisher_ids
+      };
+      
       const result = await api.requestWithRetry(
         '/api/v2/steering/apps/private/publishers',
         {
           method: 'DELETE',
-          body: JSON.stringify(params)
+          body: JSON.stringify(apiParams)
         }
       );
       return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
@@ -545,17 +590,52 @@ export const PrivateAppsTools: PrivateAppsToolsType = {
   getPolicyInUse: {
     name: 'getPolicyInUse',
     schema: z.object({
-      ids: z.array(z.string())
+      ids: z.array(z.string()).describe('Array of private app IDs (not names) to check for policy usage. Example: ["361", "123"]')
+    }).describe('IMPORTANT: Check which policies are currently applied to specific private applications. You MUST provide private app IDs (not names). To find app IDs, use the searchPrivateApps tool with the app name, then extract the app_id from the results.'),
+    handler: async (params: { ids: string[] }) => {
+      try {
+        const result = await api.requestWithRetry(
+          '/api/v2/steering/apps/private/getpolicyinuse',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: params.ids })
+          }
+        );
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+      } catch (error) {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ 
+          status: 'error', 
+          message: error instanceof Error ? error.message : 'Unknown error occurred',
+          error_details: error
+        }) }] };
+      }
+    }
+  },
+
+  getTagPolicyInUse: {
+    name: 'getTagPolicyInUse',
+    schema: z.object({
+      ids: z.array(z.string()).describe('Array of private app tag IDs to check for policy usage')
     }),
-    handler: async (params: PolicyParams) => {
-      const result = await api.requestWithRetry(
-        '/api/v2/steering/apps/private/getpolicyinuse',
-        {
-          method: 'POST',
-          body: JSON.stringify(params)
-        }
-      );
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+    handler: async (params: { ids: string[] }) => {
+      try {
+        const result = await api.requestWithRetry(
+          '/api/v2/steering/apps/private/tags/getpolicyinuse',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: params.ids })
+          }
+        );
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+      } catch (error) {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ 
+          status: 'error', 
+          message: error instanceof Error ? error.message : 'Unknown error occurred',
+          error_details: error
+        }) }] };
+      }
     }
   }
 };

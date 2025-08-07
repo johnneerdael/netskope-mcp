@@ -1,15 +1,13 @@
 import { z } from 'zod';
 import { PolicyTools } from '../../tools/policy.js';
-import { simplePolicyRuleSchema } from '../../utils/policy-helpers.js';
-import { createPolicyRuleWithValidation } from '../../utils/policy-validation.js';
-import {
-  NPAPolicyRequest,
-  NPAPolicyResponseItem
+import { 
+  npaPolicyRequestSchema,
+  NPAPolicyRequest
 } from '../../types/schemas/policy.schemas.js';
 export * from './groups.js';
 
 // Command schemas with descriptions
-const createPolicyRuleSchema = simplePolicyRuleSchema;
+const createPolicyRuleSchema = npaPolicyRequestSchema;
 const updatePolicyRuleSchema = z.object({
   id: z.number().describe('Unique identifier of the policy rule to update'),
   rule_name: z.string().optional().describe('Updated rule name'),
@@ -27,15 +25,9 @@ const listPolicyRulesSchema = z.object({
 }).describe('Options for listing policy rules');
 
 // Command implementations
-export async function createPolicyRule(params: any) {
+export async function createPolicyRule(params: NPAPolicyRequest) {
   try {
-    // First validate and resolve resource names to IDs
-    const validatedParams = await createPolicyRuleWithValidation(params);
-    
-    // Then validate against the schema
-    const schemaValidatedParams = simplePolicyRuleSchema.parse(validatedParams);
-
-    const result = await PolicyTools.createPolicyRule.handler(schemaValidatedParams);
+    const result = await PolicyTools.createPolicyRule.handler(params);
     return result; // Return the MCP format directly
   } catch (error) {
     if (error instanceof Error) {
@@ -119,7 +111,7 @@ export async function listPolicyRules(options: {
 export const policyCommands = {
   createPolicyRule: {
     name: 'createPolicyRule',
-    schema: simplePolicyRuleSchema,
+    schema: createPolicyRuleSchema,
     handler: createPolicyRule // Use our enhanced function with validation
   },
   updatePolicyRule: PolicyTools.updatePolicyRule,

@@ -220,6 +220,38 @@ export const SCIMTools = {
         return { content: [{ type: 'text' as const, text: JSON.stringify(errorResponse) }] };
       }
     }
+  },
+
+  // Admin User Operations
+  getAdminUsers: {
+    name: 'getAdminUsers',
+    schema: z.object({
+      startIndex: z.number().optional().describe('Starting index for pagination'),
+      count: z.number().optional().describe('Number of results to return')
+    }),
+    handler: async (params: { 
+      startIndex?: number; 
+      count?: number;
+    }) => {
+      try {
+        const queryParams = new URLSearchParams();
+        if (params.startIndex) queryParams.set('startIndex', params.startIndex.toString());
+        if (params.count) queryParams.set('count', params.count.toString());
+        
+        const queryString = queryParams.toString();
+        const url = `/api/v2/platform/administration/scim/Users${queryString ? `?${queryString}` : ''}`;
+        
+        const result = await api.requestWithRetry<typeof scimUsersResponseSchema._type>(url);
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+      } catch (error) {
+        console.error('Error getting admin users:', error);
+        const errorResponse = {
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Failed to get admin users'
+        };
+        return { content: [{ type: 'text' as const, text: JSON.stringify(errorResponse) }] };
+      }
+    }
   }
 };
 

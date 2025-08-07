@@ -200,7 +200,7 @@ export const privateAppsListResponseSchema = z.object({
 }).describe('Response when listing private applications');
 
 export const privateAppPublisherRequestSchema = z.object({
-  private_app_ids: z.array(z.string()).describe('Array of private application IDs'),
+  private_app_names: z.array(z.string()).describe('Array of private application names'),
   publisher_ids: z.array(z.string()).describe('Array of publisher IDs')
 }).describe('Request to update publisher associations');
 

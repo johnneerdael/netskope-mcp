@@ -20,13 +20,6 @@ export const resourceValidationRequestSchema = z.object({
   tag_type: tagTypeSchema.optional().describe('Optional tag type for tag name validation')
 }).describe('Request to validate a resource name');
 
-export const searchResourcesRequestSchema = z.object({
-  resourceType: z.enum(['publishers', 'private_apps']).describe('Type of resource to search'),
-  query: z.string().describe('Search query string in format "name sw term" or "name has term"'),
-  limit: z.number().optional().describe('Maximum number of results to return'),
-  offset: z.number().optional().describe('Number of results to skip')
-}).describe('Request to search for resources');
-
 // Response Schemas
 export const validateNameResponseSchema = z.object({
   status: z.enum(['success', 'error']).describe('Response status'),
@@ -44,22 +37,9 @@ export const resourceValidationResponseSchema = z.object({
   }).describe('Validation result')
 }).describe('Response when validating a resource');
 
-export const searchResourcesResponseSchema = z.object({
-  status: z.enum(['success', 'error']).describe('Response status'),
-  data: z.array(z.object({
-    id: z.string().or(z.number()).describe('Resource identifier'),
-    name: z.string().describe('Resource name'),
-    type: z.string().describe('Resource type'),
-    metadata: z.record(z.unknown()).optional().describe('Additional resource metadata')
-  })).describe('Search results'),
-  total: z.number().describe('Total number of matching results')
-}).describe('Response when searching for resources');
-
 // Type Exports
 export type ResourceType = z.infer<typeof resourceTypeSchema>;
 export type TagType = z.infer<typeof tagTypeSchema>;
 export type ResourceValidationRequest = z.infer<typeof resourceValidationRequestSchema>;
 export type ValidateNameResponse = z.infer<typeof validateNameResponseSchema>;
 export type ResourceValidationResponse = z.infer<typeof resourceValidationResponseSchema>;
-export type SearchResourcesRequest = z.infer<typeof searchResourcesRequestSchema>;
-export type SearchResourcesResponse = z.infer<typeof searchResourcesResponseSchema>;

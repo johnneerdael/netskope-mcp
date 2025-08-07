@@ -61,13 +61,21 @@ const updateTagsSchema = z.object({
 }).describe('Update tags for multiple private apps');
 
 const updatePublishersSchema = z.object({
-  private_app_ids: z.array(z.string()).describe('Array of private app IDs'),
+  private_app_names: z.array(z.string()).describe('Array of private app names'),
   publisher_ids: z.array(z.string()).describe('Array of publisher IDs')
 }).describe('Update publisher associations');
 
 const getPolicyInUseSchema = z.object({
   ids: z.array(z.string()).describe('Array of private app IDs')
 }).describe('Get policy in use for private apps');
+
+const getTagPolicyInUseSchema = z.object({
+  tag_ids: z.array(z.string()).describe('Array of private app tag IDs')
+}).describe('Get policy in use for private app tags');
+
+const getTagPolicyInUseByTagNameSchema = z.object({
+  tag_names: z.array(z.string()).describe('Array of private app tag names')
+}).describe('Get policy in use for private app tags by name');
 
 // Command implementations
 export async function createPrivateApp(
@@ -392,13 +400,23 @@ export async function updatePrivateAppTags(appIds: string[], tagNames: string[])
 // MCP command handler for updatePrivateAppPublishers - using updatePrivateApp approach
 async function updatePrivateAppPublishersMcpHandler(params: any) {
   try {
-    const { private_app_ids, publisher_ids } = params;
+    const { private_app_names, publisher_ids } = params;
     
-    if (private_app_ids.length !== 1) {
+    if (private_app_names.length !== 1) {
       throw new Error('This operation currently supports updating one app at a time');
     }
     
-    const appId = private_app_ids[0];
+    const appName = private_app_names[0];
+    
+    // First, find the app by name to get its ID
+    const apps = await listPrivateAppsInternal({ app_name: appName });
+    const app = apps.find((a: any) => a.app_name === appName);
+    
+    if (!app) {
+      throw new Error(`Private app '${appName}' not found`);
+    }
+    
+    const appId = app.app_id.toString();
     
     // Get current app configuration
     const currentApp = await PrivateAppsTools.get.handler({ id: appId });
@@ -456,10 +474,10 @@ async function updatePrivateAppPublishersMcpHandler(params: any) {
   }
 }
 
-export async function updatePrivateAppPublishers(appIds: string[], publisherIds: string[]) {
+export async function updatePrivateAppPublishers(appNames: string[], publisherIds: string[]) {
   try {
     const params = updatePublishersSchema.parse({
-      private_app_ids: appIds,
+      private_app_names: appNames,
       publisher_ids: publisherIds
     });
 
@@ -479,10 +497,10 @@ export async function updatePrivateAppPublishers(appIds: string[], publisherIds:
   }
 }
 
-export async function removePrivateAppPublishers(appIds: string[], publisherIds: string[]) {
+export async function removePrivateAppPublishers(appNames: string[], publisherIds: string[]) {
   try {
     const params = updatePublishersSchema.parse({
-      private_app_ids: appIds,
+      private_app_names: appNames,
       publisher_ids: publisherIds
     });
 
@@ -535,6 +553,41 @@ export async function getPolicyInUse(ids: string[]) {
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to get policy in use: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
+export async function getTagPolicyInUse(tagIds: string[]) {
+  try {
+  return await PrivateAppsTools.getTagPolicyInUse.handler({ ids: tagIds });
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to get tag policy in use: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
+export async function getTagPolicyInUseByTagName(tagNames: string[]) {
+  try {
+    // Convert tag names to IDs
+    const tagIds = await Promise.all(
+      tagNames.map(async (tagName) => {
+        const result = await PrivateAppsTools.getTags.handler({ query: tagName });
+        const tags = JSON.parse(result.content[0].text);
+        const tag = Array.isArray(tags) ? tags.find((t: any) => t.tag_name === tagName) : undefined;
+        if (!tag) {
+          throw new Error(`Private app tag '${tagName}' not found`);
+        }
+        return tag.tag_id.toString();
+      })
+    );
+    // Call the regular function with IDs
+    return await getTagPolicyInUse(tagIds);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to get tag policy in use by tag name: ${error.message}`);
     }
     throw error;
   }
@@ -968,6 +1021,16 @@ export const privateAppCommands = {
     name: 'getPolicyInUse',
     schema: getPolicyInUseSchema,
     handler: getPolicyInUse
+  },
+  getTagPolicyInUse: {
+    name: 'getTagPolicyInUse',
+    schema: getTagPolicyInUseSchema,
+    handler: async (params: { tag_ids: string[] }) => getTagPolicyInUse(params.tag_ids)
+  },
+  getTagPolicyInUseByTagName: {
+    name: 'getTagPolicyInUseByTagName',
+    schema: getTagPolicyInUseByTagNameSchema,
+    handler: async (params: { tag_names: string[] }) => getTagPolicyInUseByTagName(params.tag_names)
   },
   validatePrivateAppDeletion: {
     name: 'validatePrivateAppDeletion',

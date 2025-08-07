@@ -1,14 +1,13 @@
 import * as z from 'zod';
-import { 
+import {
+  resourceValidationRequestSchema,
+  resourceTypeSchema,
+  validateNameResponseSchema,
   ResourceType,
-  TagType,
   ResourceValidationRequest,
   ResourceValidationResponse,
-  ValidateNameResponse,
-  resourceTypeSchema,
-  resourceValidationRequestSchema,
-  searchResourcesRequestSchema,
-  SearchResourcesResponse
+  TagType,
+  ValidateNameResponse
 } from '../types/schemas/validation.schemas.js';
 import { api } from '../config/netskope-config.js';
 
@@ -54,30 +53,7 @@ export const ValidationTools = {
       );
       return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
-  },
-
-  searchResources: {
-    name: 'searchResources',
-    schema: searchResourcesRequestSchema,
-    handler: async (params: z.infer<typeof searchResourcesRequestSchema>) => {
-      const { query, ...rest } = params;
-      let queryString = '';
-      if (typeof query === 'string') {
-        const parts = query.split(' ');
-        if (parts.length === 2) {
-          queryString = `name ${parts[0]} ${parts[1]}`;
-        }
-      }
-      const queryParams = new URLSearchParams({
-        query: queryString,
-        ...(rest.limit && { limit: rest.limit.toString() }),
-        ...(rest.offset && { offset: rest.offset.toString() })
-      });
-      
-      const result = await api.requestWithRetry<ApiResponse<SearchResourcesResponse>>(
-        `/api/v2/infrastructure/npa/search/${params.resourceType}?${queryParams}`
-      );
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
-    }
   }
 };
+
+export type ValidationToolsType = typeof ValidationTools;

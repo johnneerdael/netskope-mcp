@@ -2,8 +2,6 @@ import { api } from '../config/netskope-config.js';
 import {
   PublisherAssociationRequest,
   PublisherAssociationResponse,
-  UserDiagnostics,
-  DeviceDiagnostics,
   publisherAssociationRequestSchema
 } from '../types/schemas/steering.schemas.js';
 
@@ -20,13 +18,35 @@ export const SteeringTools = {
     schema: publisherAssociationRequestSchema,
     handler: async (params: PublisherAssociationRequest) => {
       try {
+        // Convert app names to IDs if needed
+        let private_app_ids: string[];
+        
+        if ('private_app_names' in params) {
+          // Convert names to IDs
+          private_app_ids = await Promise.all(
+            params.private_app_names.map(async (appName) => {
+              const apps = await api.requestWithRetry('/api/v2/steering/apps/private', {
+                method: 'GET'
+              }) as any;
+              const app = apps.data?.private_apps?.find((a: any) => a.app_name === appName);
+              if (!app) {
+                throw new Error(`Private app '${appName}' not found`);
+              }
+              return app.app_id.toString();
+            })
+          );
+        } else {
+          // Fallback - should not happen with current schema
+          throw new Error('No app identifiers provided');
+        }
+        
         const result = await api.requestWithRetry(
           '/api/v2/steering/apps/private/publishers',
           {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              private_app_ids: params.private_app_ids,
+              private_app_ids,
               publisher_ids: params.publisher_ids
             })
           }
@@ -39,7 +59,7 @@ export const SteeringTools = {
               status: 'success',
               message: `Successfully updated publisher associations`,
               data: {
-                private_app_ids: params.private_app_ids,
+                private_app_ids,
                 publisher_ids: params.publisher_ids,
                 result: result
               }
@@ -67,13 +87,35 @@ export const SteeringTools = {
     schema: publisherAssociationRequestSchema,
     handler: async (params: PublisherAssociationRequest) => {
       try {
+        // Convert app names to IDs if needed
+        let private_app_ids: string[];
+        
+        if ('private_app_names' in params) {
+          // Convert names to IDs
+          private_app_ids = await Promise.all(
+            params.private_app_names.map(async (appName) => {
+              const apps = await api.requestWithRetry('/api/v2/steering/apps/private', {
+                method: 'GET'
+              }) as any;
+              const app = apps.data?.private_apps?.find((a: any) => a.app_name === appName);
+              if (!app) {
+                throw new Error(`Private app '${appName}' not found`);
+              }
+              return app.app_id.toString();
+            })
+          );
+        } else {
+          // Fallback - should not happen with current schema
+          throw new Error('No app identifiers provided');
+        }
+        
         const result = await api.requestWithRetry(
           '/api/v2/steering/apps/private/publishers',
           {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              private_app_ids: params.private_app_ids,
+              private_app_ids,
               publisher_ids: params.publisher_ids
             })
           }
@@ -86,7 +128,7 @@ export const SteeringTools = {
               status: 'success',
               message: `Successfully added publisher associations`,
               data: {
-                private_app_ids: params.private_app_ids,
+                private_app_ids,
                 publisher_ids: params.publisher_ids,
                 result: result
               }
@@ -114,13 +156,35 @@ export const SteeringTools = {
     schema: publisherAssociationRequestSchema,
     handler: async (params: PublisherAssociationRequest) => {
       try {
+        // Convert app names to IDs if needed
+        let private_app_ids: string[];
+        
+        if ('private_app_names' in params) {
+          // Convert names to IDs
+          private_app_ids = await Promise.all(
+            params.private_app_names.map(async (appName) => {
+              const apps = await api.requestWithRetry('/api/v2/steering/apps/private', {
+                method: 'GET'
+              }) as any;
+              const app = apps.data?.private_apps?.find((a: any) => a.app_name === appName);
+              if (!app) {
+                throw new Error(`Private app '${appName}' not found`);
+              }
+              return app.app_id.toString();
+            })
+          );
+        } else {
+          // Fallback - should not happen with current schema
+          throw new Error('No app identifiers provided');
+        }
+        
         const result = await api.requestWithRetry(
           '/api/v2/steering/apps/private/publishers',
           {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              private_app_ids: params.private_app_ids,
+              private_app_ids,
               publisher_ids: params.publisher_ids
             })
           }
@@ -133,7 +197,7 @@ export const SteeringTools = {
               status: 'success',
               message: `Successfully deleted publisher associations`,
               data: {
-                private_app_ids: params.private_app_ids,
+                private_app_ids,
                 publisher_ids: params.publisher_ids,
                 result: result
               }
@@ -152,33 +216,6 @@ export const SteeringTools = {
           }] 
         };
       }
-    }
-  },
-
-  // Get user diagnostics
-  getUserDiagnostics: {
-    name: 'getUserDiagnostics',
-    schema: {},
-    handler: async () => {
-      const result = await api.requestWithRetry<ApiResponse<UserDiagnostics>>(
-        '/api/v2/steering/npa/user/diagnostics'
-      );
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
-    }
-  },
-
-  // Get device diagnostics
-  getDeviceDiagnostics: {
-    name: 'getDeviceDiagnostics',
-    schema: {
-      deviceId: 'string',
-      privateAppId: 'string'
-    },
-    handler: async (params: { deviceId: string; privateAppId: string }) => {
-      const result = await api.requestWithRetry<ApiResponse<DeviceDiagnostics>>(
-        `/api/v2/steering/npa/devices/${params.deviceId}/diagnostics/private_app/${params.privateAppId}`
-      );
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
   }
 };

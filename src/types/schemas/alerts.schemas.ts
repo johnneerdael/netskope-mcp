@@ -9,10 +9,10 @@ export const alertEventTypeSchema = z.enum([
 ]).describe('Types of events that can trigger notifications');
 
 export const alertConfigSchema = z.object({
-  adminUsers: z.array(z.string()).describe('Array of admin user emails to receive notifications'),
+  adminUsers: z.array(z.string()).describe('Array of admin user emails to receive notifications. Use the getAdminUsers tool to validate email addresses exist in the system before adding them.'),
   eventTypes: z.array(alertEventTypeSchema).describe('Array of event types to monitor'),
   selectedUsers: z.string().describe('Additional users to receive notifications')
-}).describe('Alert configuration settings for publishers');
+}).describe('Alert configuration settings for publishers. Validate admin user emails with getAdminUsers tool before updating.');
 
 export const alertConfigResponseSchema = z.object({
   data: alertConfigSchema.describe('Current alert configuration settings'),

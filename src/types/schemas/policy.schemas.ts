@@ -38,28 +38,56 @@ export const policyConditionSchema = z.object({
 export const npaPolicyRequestSchema = z.object({
   rule_name: z.string().describe('Name of the policy rule'),
   description: z.string().optional().describe('Optional rule description'),
-  enabled: z.enum(['0', '1']).describe('Whether the rule is enabled (1) or disabled (0)'),
+  enabled: z.string().describe('Whether the rule is enabled ("1") or disabled ("0")'),
   group_id: z.string().describe('ID of the policy group this rule belongs to'),
   group_name: z.string().optional().describe('Name of the policy group'),
   rule_data: z.object({
-    access_method: z.array(z.enum(['Client', 'Clientless'])).optional().describe('Access methods allowed'),
-    policy_type: z.literal('private-app').describe('Type of policy'),
+    access_method: z.array(z.enum(['Client', 'Clientless', 'any'])).optional().describe('Access methods allowed'),
+    b_negateNetLocation: z.boolean().optional().describe('Negate network location match'),
+    b_negateSrcCountries: z.boolean().optional().describe('Negate source countries match'),
+    classification: z.string().optional().describe('Classification setting'),
+    periodic_reauth: z.object({
+      reauth_interval: z.string().describe('Reauth interval value'),
+      reauth_interval_unit: z.string().describe('Reauth interval unit (hours, minutes, etc.)')
+    }).optional().describe('Periodic reauthentication settings'),
+    dlp_actions: z.array(z.object({
+      actions: z.array(z.enum(['allow', 'block', 'alert', 'quarantine', 'bypass'])).describe('DLP actions'),
+      dlp_profile: z.string().describe('DLP profile name')
+    })).optional().describe('DLP action configurations'),
+    tss_actions: z.array(z.object({
+      tss_profile: z.string().describe('TSS profile name'),
+      actions: z.array(z.object({
+        action_name: z.enum(['block', 'alert', 'allow']).describe('TSS action name'),
+        remediation_profile: z.string().optional().describe('Remediation profile'),
+        severity: z.enum(['low', 'medium', 'high']).optional().describe('Severity level'),
+        template: z.string().optional().describe('Template name')
+      })).describe('TSS action configurations')
+    })).optional().describe('TSS action configurations'),
+    tss_profile: z.array(z.string()).optional().describe('TSS profiles'),
+    external_dlp: z.boolean().optional().describe('External DLP setting'),
+    json_version: z.number().default(3).describe('JSON version for the rule data'),
+    device_classification_id: z.array(z.number()).optional().describe('Device classification IDs'),
     match_criteria_action: z.object({
       action_name: z.enum(['allow', 'block']).describe('Action to take when criteria match')
     }).describe('Action configuration'),
-    privateApps: z.array(z.string()).optional().describe('List of private application names/IDs'),
-    userGroups: z.array(z.string()).optional().describe('List of user groups'),
-    users: z.array(z.string()).optional().describe('List of individual users'),
-    organization_units: z.array(z.string()).optional().describe('List of organization units'),
     net_location_obj: z.array(z.string()).optional().describe('Network locations'),
-    b_negateNetLocation: z.boolean().optional().describe('Negate network location match'),
-    srcCountries: z.array(z.string()).optional().describe('Source countries'),
-    b_negateSrcCountries: z.boolean().optional().describe('Negate source countries match'),
-    device_classification_id: z.array(z.number()).optional().describe('Device classification IDs'),
-    privateAppTags: z.array(z.string()).optional().describe('Private app tags'),
+    organization_units: z.array(z.string()).optional().describe('List of organization units'),
+    policy_type: z.literal('private-app').describe('Type of policy'),
     privateAppTagIds: z.array(z.string()).optional().describe('Private app tag IDs'),
-    userType: z.enum(['user', 'service']).optional().describe('Type of user'),
-    json_version: z.number().default(3).describe('JSON version for the rule data'),
+    privateAppTags: z.array(z.string()).optional().describe('Private app tags'),
+    privateApps: z.array(z.string()).optional().describe('List of private application names'),
+    privateAppsWithActivities: z.array(z.object({
+      activities: z.array(z.object({
+        activity: z.enum(['any']).describe('Activity type'),
+        list_of_constraints: z.array(z.string()).optional().describe('Activity constraints')
+      })).describe('Activities for this app'),
+      appName: z.string().describe('Application name')
+    })).optional().describe('Private apps with specific activities'),
+    show_dlp_profile_action_table: z.boolean().optional().describe('Show DLP profile action table'),
+    srcCountries: z.array(z.string()).optional().describe('Source countries'),
+    userGroups: z.array(z.string()).optional().describe('List of user groups'),
+    userType: z.enum(['user']).optional().describe('Type of user'),
+    users: z.array(z.string()).optional().describe('List of individual users'),
     version: z.number().default(1).describe('Rule version')
   }).describe('Rule data configuration'),
   rule_order: z.object({

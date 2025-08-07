@@ -157,18 +157,15 @@ export const PolicyTools = {
 
   createPolicyRule: {
     name: 'createPolicyRule',
-    schema: simplePolicyRuleSchema,
-    handler: async (params: any) => {
+    schema: npaPolicyRequestSchema,
+    handler: async (params: NPAPolicyRequest) => {
       try {
-        // Transform simplified input to API format
-        const apiPayload = transformToPolicyAPIFormat(params);
-        
         const result = await api.requestWithRetry<ApiResponse<NPAPolicyResponse>>(
           '/api/v2/policy/npa/rules',
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(apiPayload)
+            body: JSON.stringify(params)
           }
         );
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };

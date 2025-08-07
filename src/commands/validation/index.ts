@@ -3,7 +3,6 @@ import { ValidationTools } from '../../tools/validation.js';
 import { 
   resourceTypeSchema, 
   resourceValidationRequestSchema,
-  searchResourcesRequestSchema,
   tagTypeSchema,
   TagType,
   ResourceType
@@ -41,18 +40,6 @@ export async function validateResource(params: {
   }
 }
 
-export async function searchResources(params: z.infer<typeof searchResourcesRequestSchema>) {
-  try {
-    const result = await ValidationTools.searchResources.handler(params);
-    return result;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to search resources: ${error.message}`);
-    }
-    throw error;
-  }
-}
-
 // Export command definitions for MCP server
 export const validationCommands = {
   validateName: {
@@ -71,10 +58,5 @@ export const validationCommands = {
       data: resourceValidationRequestSchema
     }),
     handler: validateResource
-  },
-  searchResources: {
-    name: 'searchResources',
-    schema: searchResourcesRequestSchema,
-    handler: searchResources
   }
 };

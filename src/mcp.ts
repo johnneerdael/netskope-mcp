@@ -120,8 +120,20 @@ export class NetskopeClient {
   }
 
   // Policy Rules
-  async createPolicyRule(name: string, groupId: string) {
-    return await commands.createPolicyRule({ name, policy_group_id: groupId });
+  async createPolicyRule(ruleName: string, groupId: string) {
+    return await commands.createPolicyRule({ 
+      rule_name: ruleName, 
+      group_id: groupId,
+      enabled: "1",
+      rule_data: {
+        policy_type: "private-app",
+        json_version: 3,
+        version: 1,
+        match_criteria_action: {
+          action_name: "allow"
+        }
+      }
+    });
   }
 
   async listPolicyRules(options: { limit?: number; sortby?: string; sortorder?: string } = {}) {
