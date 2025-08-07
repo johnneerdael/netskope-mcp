@@ -1,6 +1,6 @@
 {
   "name": "@johnneerdael/ns-private-access-mcp",
-  "version": "5.5.0",
+  "version": "5.5.1",
   "description": "MCP server for Netskope's Zero Trust Network Access Platform management through LLM's",
   "type": "module",
   "bin": {

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { PrivateAppsTools } from '../../tools/private-apps.js';
+import { api } from '../../config/netskope-config.js';
 import {
   privateAppRequestSchema,
   privateAppUpdateRequestSchema,
@@ -409,46 +410,44 @@ async function updatePrivateAppPublishersMcpHandler(params: any) {
     
     const appConfig = currentAppData.data;
     
-    // Transform protocols from API response format to schema format
-    const transformedProtocols = appConfig.protocols.map((protocol: any) => ({
-      port: protocol.port,
-      type: protocol.transport || protocol.type || 'tcp' // Use transport or type, fallback to tcp
-    }));
-    
-    // Update publishers array
+    // Create publishers array with both old and new publishers
     const updatedPublishers = publisher_ids.map((publisherId: string) => ({
       publisher_id: publisherId,
       publisher_name: "" // API should accept empty name
     }));
     
-    // Transform tags from API response format to schema format
-    const transformedTags = (appConfig.tags || []).map((tag: any) => ({
-      tag_name: tag.tag_name
-    }));
-    
-    // Create update params with proper schema format
+    // Create update params - using a minimal PATCH approach based on your working curl
     const updateParams = {
-      id: appConfig.id,
+      app_id: parseInt(appId), // Include app_id as required by API
       app_name: appConfig.app_name,
-      host: appConfig.host,
-      clientless_access: appConfig.clientless_access,
-      is_user_portal_app: appConfig.is_user_portal_app,
-      protocols: transformedProtocols,
       publishers: updatedPublishers,
+      tags: (appConfig.tags || []).map((tag: any) => ({
+        tag_name: tag.tag_name
+      })),
       trust_self_signed_certs: appConfig.trust_self_signed_certs,
-      use_publisher_dns: appConfig.use_publisher_dns,
-      allow_unauthenticated_cors: appConfig.allow_unauthenticated_cors,
-      allow_uri_bypass: appConfig.allow_uri_bypass,
-      bypass_uris: appConfig.bypass_uris || [],
-      real_host: appConfig.real_host,
-      app_option: appConfig.app_option || {},
-      tags: transformedTags,
-      private_app_tags: [], // Keep empty for now
-      publisher_tags: [] // Keep empty for now
+      use_publisher_dns: appConfig.use_publisher_dns
     };
     
-    const result = await PrivateAppsTools.replace.handler(updateParams);
-    return result;
+    // Call the PATCH endpoint directly using the API client
+    const result = await api.requestWithRetry(
+      `/api/v2/steering/apps/private/${appId}?silent=0`,
+      { 
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateParams)
+      }
+    );
+    
+    return {
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify({
+          status: 'success',
+          message: `Successfully updated publishers for private app ${appId}`,
+          data: result
+        }, null, 2)
+      }]
+    };
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to update private app publishers: ${error.message}`);
