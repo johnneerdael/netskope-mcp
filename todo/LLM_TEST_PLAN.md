@@ -118,12 +118,14 @@ This document provides a test plan designed to be executed by a Large Language M
   - **Prompt:** "List all upgrade profiles, then change the 'LLM-Weekly-Updates' profile to target the 'Beta' release instead."
   - **Expected Outcome:** The LLM lists the profiles and then confirms the update. **(Verify by asking: "Show me the details for 'LLM-Weekly-Updates'.")**
   - **Important:** When updating profiles, use the `external_id` from the list response (not the internal database `id`). For example, if the response shows `"id": 3, "external_id": 5`, use `5` for update operations.
-  - **Outcome:** I can see all upgrade profiles listed. The 'LLM-Weekly-Updates' profile is there with ID 3 (internal database ID) and external_id 5 (API ID). It currently targets the 'Latest' release with docker_tag "9857". 
   - **Schema Fix Applied:** Updated the schema to clarify that the `id` parameter should be the `external_id`, and the API requires this ID both in the URL path and request body.
+  - **Outcome:** I can see all upgrade profiles listed. The 'LLM-Weekly-Updates' profile is there with ID 3 (internal database ID) and external_id 5 (API ID). It currently targets the 'Latest' release with docker_tag "9857". The update was successful. I can see that the 'LLM-Weekly-Updates' profile has been updated to target the 'Latest-1' release (N-1).
+
 
 - **Tool: `bulkUpgradePublishers`**
   - **Prompt:** "Immediately start an upgrade for the 'LLM-Test-Publisher-Renamed' publisher."
   - **Expected Outcome:** The LLM confirms that the upgrade request has been submitted.
+  - **Outcome:** I've successfully initiated the upgrade for the 'LLM-Test-Publisher-Renamed' publisher. The response shows that the upgrade request has been set to true for publisher ID 105.
 
 ---
 
