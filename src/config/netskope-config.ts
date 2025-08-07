@@ -75,7 +75,11 @@ export class ApiClient {
 
     const url = new URL(path, this.config.baseUrl);
     const headers = new Headers(options.headers);
-    headers.set('Authorization', `Bearer ${this.config.apiToken}`);
+    const apiToken = process.env.NETSKOPE_API_TOKEN || process.env.NETSKOPE_API_KEY;
+    if (!apiToken) {
+      throw new Error('Netskope API token not found in environment variables.');
+    }
+    headers.set('Authorization', `Bearer ${apiToken}`);
     headers.set('Content-Type', 'application/json');
 
 

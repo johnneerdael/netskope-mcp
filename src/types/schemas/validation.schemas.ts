@@ -22,7 +22,7 @@ export const resourceValidationRequestSchema = z.object({
 
 export const searchResourcesRequestSchema = z.object({
   resourceType: z.enum(['publishers', 'private_apps']).describe('Type of resource to search'),
-  query: z.string().describe('Search query string'),
+  query: z.string().describe('Search query string in format "name sw term" or "name has term"'),
   limit: z.number().optional().describe('Maximum number of results to return'),
   offset: z.number().optional().describe('Number of results to skip')
 }).describe('Request to search for resources');

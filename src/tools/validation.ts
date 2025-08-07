@@ -60,10 +60,17 @@ export const ValidationTools = {
     name: 'searchResources',
     schema: searchResourcesRequestSchema,
     handler: async (params: z.infer<typeof searchResourcesRequestSchema>) => {
+      const { query, ...rest } = params;
+      let queryString = '';
+      if (query.sw) {
+        queryString = `name sw ${query.sw}`;
+      } else if (query.has) {
+        queryString = `name has ${query.has}`;
+      }
       const queryParams = new URLSearchParams({
-        query: params.query,
-        ...(params.limit && { limit: params.limit.toString() }),
-        ...(params.offset && { offset: params.offset.toString() })
+        query: queryString,
+        ...(rest.limit && { limit: rest.limit.toString() }),
+        ...(rest.offset && { offset: rest.offset.toString() })
       });
       
       const result = await api.requestWithRetry<ApiResponse<SearchResourcesResponse>>(
