@@ -112,6 +112,21 @@ export async function createPrivateApp(
   }
 }
 
+// MCP command handler that returns proper MCP response format
+async function updatePrivateAppMcpHandler(params: any) {
+  try {
+    // The params come from the MCP client and include all the update fields
+    const result = await PrivateAppsTools.update.handler(params);
+    // Return the MCP response directly since that's what the server expects
+    return result;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to update private app: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
 export async function updatePrivateApp(
   id: string,
   name: string,
@@ -176,6 +191,21 @@ export async function getPrivateApp({ id }: { id: string }) {
     }
     
     return data.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to get private app: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
+// MCP command handler that returns proper MCP response format
+async function getPrivateAppMcpHandler({ id }: { id: string }) {
+  try {
+    const params = privateAppIdSchema.parse({ id });
+    const result = await PrivateAppsTools.get.handler(params);
+    // Return the MCP response directly since that's what the server expects
+    return result;
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to get private app: ${error.message}`);
@@ -253,6 +283,25 @@ export async function listPrivateApps(options: {
   }
 }
 
+// MCP command handler for listPrivateAppTags
+async function listPrivateAppTagsMcpHandler(options: {
+  query?: string;
+  limit?: number;
+  offset?: number;
+} = {}) {
+  try {
+    const params = listTagsSchema.parse(options);
+    const result = await PrivateAppsTools.getTags.handler(params);
+    // Return the MCP response directly since that's what the server expects
+    return result;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to list private app tags: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
 export async function listPrivateAppTags(options: {
   query?: string;
   limit?: number;
@@ -272,6 +321,20 @@ export async function listPrivateAppTags(options: {
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to list private app tags: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
+// MCP command handler for createPrivateAppTags
+async function createPrivateAppTagsMcpHandler(params: any) {
+  try {
+    const result = await PrivateAppsTools.createTags.handler(params);
+    // Return the MCP response directly since that's what the server expects
+    return result;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to create private app tags: ${error.message}`);
     }
     throw error;
   }
@@ -320,6 +383,75 @@ export async function updatePrivateAppTags(appIds: string[], tagNames: string[])
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to update private app tags: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
+// MCP command handler for updatePrivateAppPublishers - using updatePrivateApp approach
+async function updatePrivateAppPublishersMcpHandler(params: any) {
+  try {
+    const { private_app_ids, publisher_ids } = params;
+    
+    if (private_app_ids.length !== 1) {
+      throw new Error('This operation currently supports updating one app at a time');
+    }
+    
+    const appId = private_app_ids[0];
+    
+    // Get current app configuration
+    const currentApp = await PrivateAppsTools.get.handler({ id: appId });
+    const currentAppData = JSON.parse(currentApp.content[0].text);
+    
+    if (currentAppData.status !== 'success') {
+      throw new Error('Failed to get current app configuration');
+    }
+    
+    const appConfig = currentAppData.data;
+    
+    // Transform protocols from API response format to schema format
+    const transformedProtocols = appConfig.protocols.map((protocol: any) => ({
+      port: protocol.port,
+      type: protocol.transport || protocol.type || 'tcp' // Use transport or type, fallback to tcp
+    }));
+    
+    // Update publishers array
+    const updatedPublishers = publisher_ids.map((publisherId: string) => ({
+      publisher_id: publisherId,
+      publisher_name: "" // API should accept empty name
+    }));
+    
+    // Transform tags from API response format to schema format
+    const transformedTags = (appConfig.tags || []).map((tag: any) => ({
+      tag_name: tag.tag_name
+    }));
+    
+    // Create update params with proper schema format
+    const updateParams = {
+      id: appConfig.id,
+      app_name: appConfig.app_name,
+      host: appConfig.host,
+      clientless_access: appConfig.clientless_access,
+      is_user_portal_app: appConfig.is_user_portal_app,
+      protocols: transformedProtocols,
+      publishers: updatedPublishers,
+      trust_self_signed_certs: appConfig.trust_self_signed_certs,
+      use_publisher_dns: appConfig.use_publisher_dns,
+      allow_unauthenticated_cors: appConfig.allow_unauthenticated_cors,
+      allow_uri_bypass: appConfig.allow_uri_bypass,
+      bypass_uris: appConfig.bypass_uris || [],
+      real_host: appConfig.real_host,
+      app_option: appConfig.app_option || {},
+      tags: transformedTags,
+      private_app_tags: [], // Keep empty for now
+      publisher_tags: [] // Keep empty for now
+    };
+    
+    const result = await PrivateAppsTools.replace.handler(updateParams);
+    return result;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to update private app publishers: ${error.message}`);
     }
     throw error;
   }
@@ -778,7 +910,15 @@ export const privateAppCommands = {
   updatePrivateApp: {
     name: 'updatePrivateApp',
     schema: updatePrivateAppSchema,
-    handler: updatePrivateApp
+    handler: updatePrivateAppMcpHandler
+  },
+  replacePrivateApp: {
+    name: 'replacePrivateApp',
+    schema: updatePrivateAppSchema,
+    handler: async (params: any) => {
+      const result = await PrivateAppsTools.replace.handler(params);
+      return result;
+    }
   },
   deletePrivateApp: {
     name: 'deletePrivateApp',
@@ -788,7 +928,7 @@ export const privateAppCommands = {
   getPrivateApp: {
     name: 'getPrivateApp',
     schema: privateAppIdSchema,
-    handler: getPrivateApp
+    handler: getPrivateAppMcpHandler
   },
   listPrivateApps: {
     name: 'listPrivateApps',
@@ -798,12 +938,12 @@ export const privateAppCommands = {
   listPrivateAppTags: {
     name: 'listPrivateAppTags',
     schema: listTagsSchema,
-    handler: listPrivateAppTags
+    handler: listPrivateAppTagsMcpHandler
   },
   createPrivateAppTags: {
     name: 'createPrivateAppTags',
     schema: createTagsSchema,
-    handler: createPrivateAppTags
+    handler: createPrivateAppTagsMcpHandler
   },
   updatePrivateAppTags: {
     name: 'updatePrivateAppTags',
@@ -813,7 +953,7 @@ export const privateAppCommands = {
   updatePrivateAppPublishers: {
     name: 'updatePrivateAppPublishers',
     schema: updatePublishersSchema,
-    handler: updatePrivateAppPublishers
+    handler: updatePrivateAppPublishersMcpHandler
   },
   removePrivateAppPublishers: {
     name: 'removePrivateAppPublishers',

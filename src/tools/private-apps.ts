@@ -50,6 +50,11 @@ interface PrivateAppsToolsType {
     schema: typeof privateAppUpdateRequestSchema;
     handler: (params: z.infer<typeof privateAppUpdateRequestSchema>) => Promise<{ content: [{ type: 'text'; text: string }] }>;
   };
+  replace: {
+    name: 'replacePrivateApp';
+    schema: typeof privateAppUpdateRequestSchema;
+    handler: (params: z.infer<typeof privateAppUpdateRequestSchema>) => Promise<{ content: [{ type: 'text'; text: string }] }>;
+  };
   delete: {
     name: 'deletePrivateApp';
     schema: z.ZodObject<{ id: z.ZodString }>;
@@ -271,7 +276,7 @@ export const PrivateAppsTools: PrivateAppsToolsType = {
         const result = await api.requestWithRetry(
           `/api/v2/steering/apps/private/${params.id}`,
           {
-            method: 'PUT',
+            method: 'PATCH',  // Changed to PATCH for partial updates
             body: JSON.stringify(apiPayload)
           }
         );
@@ -282,6 +287,45 @@ export const PrivateAppsTools: PrivateAppsToolsType = {
       }
     }
   },
+
+  replace: {
+    name: 'replacePrivateApp',
+    schema: privateAppUpdateRequestSchema,
+    handler: async (params: z.infer<typeof privateAppUpdateRequestSchema>) => {
+      try {
+        // Create API payload by removing id from params (it goes in URL)
+        const { id, ...basePayload } = params;
+        
+        // Apply the same transformations as update
+        const appType = basePayload.clientless_access ? 'clientless' : 'client';
+        const apiPayload = {
+          ...basePayload,
+          app_type: appType,
+          // Map trust_self_signed_certs to isSelfSignedCert
+          isSelfSignedCert: params.trust_self_signed_certs,
+          // Add hostType based on protocol for clientless apps
+          ...(appType === 'clientless' && {
+            hostType: params.protocols.some(p => p.type === 'https') ? 'https' : 'http'
+          })
+        };
+        
+        // Remove the original field to avoid conflicts
+        delete (apiPayload as any).trust_self_signed_certs;
+
+        const result = await api.requestWithRetry(
+          `/api/v2/steering/apps/private/${params.id}`,
+          {
+            method: 'PUT',  // PUT for complete replacement
+            body: JSON.stringify(apiPayload)
+          }
+        );
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        throw new Error(`Failed to replace private app: ${errorMessage}`);
+      }
+    }
+  } as const,
 
   delete: {
     name: 'deletePrivateApp',
@@ -299,10 +343,17 @@ export const PrivateAppsTools: PrivateAppsToolsType = {
     name: 'getPrivateApp',
     schema: z.object({ id: z.string() }),
     handler: async ({ id }: { id: string }) => {
-      const result = await api.requestWithRetry(
-        `/api/v2/steering/apps/private/${id}`
-      );
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+      try {
+        const result = await api.requestWithRetry(
+          `/api/v2/steering/apps/private/${id}`
+        );
+        
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        const errorResponse = { error: errorMessage, id };
+        return { content: [{ type: 'text' as const, text: JSON.stringify(errorResponse) }] };
+      }
     }
   },
 

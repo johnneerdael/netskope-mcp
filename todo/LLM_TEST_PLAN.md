@@ -136,18 +136,23 @@ This document provides a test plan designed to be executed by a Large Language M
 - **Tool: `createPrivateApp`**
   - **Prompt:** "Define a new private application named 'LLM-Test-App' with the host 'intranet.test.local' on TCP port 8443. It should be served by the 'LLM-Test-Publisher-Renamed' publisher."
   - **Expected Outcome:** The LLM confirms the private app's creation. **(Note this app's name and ID).**
+  - **Outcome:** Great! I've successfully created the private application. And can validate all settings by fetching the specific app settings.
+
 
 - **Tool: `listPrivateApps` & `getPrivateApp`**
   - **Prompt:** "List all my private apps, then show me the full configuration for 'LLM-Test-App'."
   - **Expected Outcome:** The LLM lists the apps, then shows the detailed configuration for the new app.
+  - **Outcome:** I've successfully listed all private apps and shown the full configuration for 'LLM-Test-App' (ID: 361). The app is configured with host 'intranet.test.local' on TCP port 8443, served by the 'LLM-Test-Publisher-Renamed' publisher (ID: 105). The app currently has no policies or tags assigned and is not reachable.
 
 - **Tool: `updatePrivateApp`**
   - **Prompt:** "Update the 'LLM-Test-App' to also allow clientless access."
   - **Expected Outcome:** The LLM confirms the update. **(Verify by asking for the app's details again).**
+  - **Outcome:** I've successfully updated the 'LLM-Test-App' (ID: 361) to enable clientless access. The app configuration now shows `clientless_access: true` instead of the previous `false` value. The modification was confirmed by retrieving the app details again after the update.
 
 - **Tool: `getPrivateAppTags` & `createPrivateAppTags`**
   - **Prompt:** "Show me the available private app tags, then tag the 'LLM-Test-App' as 'testing'."
   - **Expected Outcome:** The LLM lists tags and then confirms the tagging operation.
+  - **Outcome:** I've successfully listed the available private app tags (automation, database, management, tools, etc.) and tagged the 'LLM-Test-App' (ID: 361) with the 'testing' tag. The operation was confirmed with the response showing the app now has the tag with ID 49 and name 'testing'.
 
 - **Tool: `updatePublisherAssociation`**
   - **Prompt:** "I need to add a backup publisher to the 'LLM-Test-App'. Find a publisher with 'backup' in its name and associate it with the app."

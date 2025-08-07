@@ -126,7 +126,7 @@ export const privateAppRequestSchema = z.object({
   protocols: z.array(protocolSchema).describe('Network protocols configuration - supports both TCP/UDP and browser protocols'),
   publisher_tags: z.array(tagNoIdSchema).optional().describe('Optional publisher tags'),
   publishers: z.array(publisherItemCreateSchema).optional().describe('Associated publishers (optional)'),
-  trust_self_signed_certs: z.boolean().describe('Trust self-signed certificates'),
+  trust_self_signed_certs: z.boolean().optional().describe('Trust self-signed certificates'),
   use_publisher_dns: z.boolean().describe('Use publisher DNS'),
   allow_unauthenticated_cors: z.boolean().optional().describe('Optional CORS settings'),
   allow_uri_bypass: z.boolean().optional().describe('Optional URI bypass'),
