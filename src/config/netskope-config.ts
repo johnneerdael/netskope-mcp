@@ -66,6 +66,17 @@ export class ApiClient {
     const startTime = Date.now();
     const cacheKey = this.getCacheKey(path, options);
     
+    // Debug logging for URL construction
+    const timestamp = new Date().toISOString();
+    const logMessage = `[${timestamp}] API: request called with path: ${JSON.stringify(path)}, type: ${typeof path}\n`;
+    try {
+      const fs = await import('fs');
+      fs.appendFileSync('debug.log', logMessage);
+    } catch (error) {
+      console.error('Debug log failed:', error);
+      console.log('API request path:', path, 'type:', typeof path);
+    }
+    
     if (options.method === 'GET') {
       const cached = this.cache.get(cacheKey);
       if (cached && this.isCacheValid(cached.timestamp)) {

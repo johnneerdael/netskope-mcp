@@ -62,10 +62,11 @@ export const ValidationTools = {
     handler: async (params: z.infer<typeof searchResourcesRequestSchema>) => {
       const { query, ...rest } = params;
       let queryString = '';
-      if (query.sw) {
-        queryString = `name sw ${query.sw}`;
-      } else if (query.has) {
-        queryString = `name has ${query.has}`;
+      if (typeof query === 'string') {
+        const parts = query.split(' ');
+        if (parts.length === 2) {
+          queryString = `name ${parts[0]} ${parts[1]}`;
+        }
       }
       const queryParams = new URLSearchParams({
         query: queryString,

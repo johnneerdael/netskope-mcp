@@ -6,6 +6,21 @@ import {
   publisherPatchRequestSchema,
   bulkUpgradeRequestSchema
 } from '../../types/schemas/publisher.schemas.js';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Debug logging function
+function debugLog(message: string, data?: any) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] COMMAND: ${message}${data ? ': ' + JSON.stringify(data, null, 2) : ''}\n`;
+  const logPath = path.join(process.cwd(), 'debug.log');
+  
+  try {
+    fs.appendFileSync(logPath, logMessage);
+  } catch (error) {
+    console.error('Failed to write to debug.log:', error);
+  }
+}
 
 // Command implementations
 export async function listPublishers(params: { fields?: string } = {}) {
@@ -20,11 +35,15 @@ export async function listPublishers(params: { fields?: string } = {}) {
   }
 }
 
-export async function getPublisher(id: number) {
+export async function getPublisher({ id }: { id: number }) {
+  debugLog('getPublisher command called', { id, typeOfId: typeof id });
+  
   try {
     const result = await PublishersTools.get.handler({ id });
+    debugLog('getPublisher command successful', { resultStatus: result?.content?.[0]?.text ? 'has content' : 'no content' });
     return result;
   } catch (error) {
+    debugLog('getPublisher command failed', { error: error instanceof Error ? error.message : error });
     if (error instanceof Error) {
       throw new Error(`Failed to get publisher: ${error.message}`);
     }
@@ -68,7 +87,7 @@ export async function updatePublisher(params: z.infer<typeof publisherPatchReque
   }
 }
 
-export async function deletePublisher(id: number) {
+export async function deletePublisher({ id }: { id: number }) {
   try {
     const result = await PublishersTools.delete.handler({ id });
     return result;
@@ -104,7 +123,7 @@ export async function getReleases() {
   }
 }
 
-export async function getPrivateApps(publisherId: number) {
+export async function getPrivateApps({ publisherId }: { publisherId: number }) {
   try {
     const result = await PublishersTools.getPrivateApps.handler({ publisherId });
     return result;
@@ -116,7 +135,7 @@ export async function getPrivateApps(publisherId: number) {
   }
 }
 
-export async function generatePublisherRegistrationToken(publisherId: number) {
+export async function generatePublisherRegistrationToken({ publisherId }: { publisherId: number }) {
   try {
     const result = await PublishersTools.generatePublisherRegistrationToken.handler({ publisherId });
     return result;

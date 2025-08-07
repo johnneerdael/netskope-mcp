@@ -10,6 +10,21 @@ import { privateAppCommands } from './commands/private-apps/index.js';
 import { steeringCommands } from './commands/steering/index.js';
 import { validationCommands } from './commands/validation/index.js';
 import { upgradeProfileCommands } from './commands/upgrade/index.js';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Debug logging function
+function debugLog(message: string, data?: any) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] SERVER: ${message}${data ? ': ' + JSON.stringify(data, null, 2) : ''}\n`;
+  const logPath = path.join(process.cwd(), 'debug.log');
+  
+  try {
+    fs.appendFileSync(logPath, logMessage);
+  } catch (error) {
+    console.error('Failed to write to debug.log:', error);
+  }
+}
 
 // Command interface
 interface McpCommand {
@@ -31,16 +46,33 @@ export class NetskopeServer {
       baseUrl: process.env.NETSKOPE_BASE_URL,
       apiKey: process.env.NETSKOPE_API_KEY
     });
+    debugLog('NetskopeServer initialized');
     this.setupTools();
   }
 
   private setupTools(): void {
+    debugLog('Setting up tools');
+    
     // Register publisher commands
-    Object.entries(publisherCommands).forEach(([_, command]: [string, McpCommand]) => {
+    Object.entries(publisherCommands).forEach(([key, command]: [string, McpCommand]) => {
+      debugLog('Registering publisher command', { key, name: command.name, schema: command.schema });
+      
+      const wrappedHandler = async (args: any, extra: any) => {
+        debugLog(`Tool ${command.name} called`, { args, extra });
+        try {
+          const result = await command.handler(args);
+          debugLog(`Tool ${command.name} completed successfully`);
+          return result;
+        } catch (error) {
+          debugLog(`Tool ${command.name} failed`, { error: error instanceof Error ? error.message : error });
+          throw error;
+        }
+      };
+      
       this.server.tool(
         command.name,
         command.schema instanceof z.ZodObject ? command.schema.shape : {},
-        command.handler
+        wrappedHandler
       );
     });
 

@@ -31,7 +31,7 @@ export class NetskopeClient {
   }
 
   async getPublisher(id: number) {
-    return await commands.getPublisher(id);
+    return await commands.getPublisher({ id });
   }
 
   async listPublishers() {
@@ -39,7 +39,7 @@ export class NetskopeClient {
   }
 
   async generatePublisherRegistrationToken(publisherId: number) {
-    return await commands.generatePublisherRegistrationToken(publisherId);
+    return await commands.generatePublisherRegistrationToken({ publisherId });
   }
 
   // Local Broker
