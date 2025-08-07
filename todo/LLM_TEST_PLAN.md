@@ -13,13 +13,19 @@ This document provides a test plan designed to be executed by a Large Language M
 - **Tool: `validateName`**
   - **Prompt 1:** "Check if 'My-First-Publisher' is a valid name for a publisher."
   - **Expected Outcome:** The LLM should state that the name is valid.
-  - **Prompt 2:** "Is 'My@App!' a valid name for a private app?"
-  - **Expected Outcome:** The LLM should state that the name is invalid and provide the reason.
+  - **Outcome:** The name 'My-First-Publisher' is valid for a publisher. The validation check returned successful with is_valid_name: true.
+  - **Prompt 2:** "'docker-aws' a valid name for a private app?"
+  - **Expected Outcome:** The LLM should state that the name is not valid and provide the reason.
+  - **Outcome**: The name '[docker-aws]' is not valid for a private app because it already exists in the system. The validation tool returned an error message indicating that a private app with this name already exists.
+
 
 - **Tool: `searchResources`**
   - **Prompt:** "Search for any publishers with 'prod' in their name."
   - **Expected Outcome:** The LLM should return a list of matching publishers or state that none were found.
-
+  - **Outcome:** The search was successful but returned no results - there are no publishers whose names start with "prod".
+  - **Prompt:** "Search for any publishers whose name starts with 'prod'"
+  - **Expected Outcome:** The LLM should return a list of matching publishers or state that none were found.
+  - **Outcome:** The search was successful but returned no results - there are no publishers whose names contain "prod".
 ---
 
 ## 2. Publisher and Upgrade Management
