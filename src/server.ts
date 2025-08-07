@@ -10,6 +10,7 @@ import { privateAppCommands } from './commands/private-apps/index.js';
 import { steeringCommands } from './commands/steering/index.js';
 import { validationCommands } from './commands/validation/index.js';
 import { upgradeProfileCommands } from './commands/upgrade/index.js';
+import { scimCommands } from './commands/scim/index.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -113,6 +114,15 @@ export class NetskopeServer {
 
     // Register upgrade profile commands
     Object.entries(upgradeProfileCommands).forEach(([_, command]: [string, McpCommand]) => {
+      this.server.tool(
+        command.name,
+        command.schema instanceof z.ZodObject ? command.schema.shape : {},
+        command.handler
+      );
+    });
+
+    // Register SCIM commands
+    Object.entries(scimCommands).forEach(([_, command]: [string, McpCommand]) => {
       this.server.tool(
         command.name,
         command.schema instanceof z.ZodObject ? command.schema.shape : {},

@@ -8,6 +8,7 @@ import {
   npaPolicyGroupRequestSchema,
   NPAPolicyResponse400
 } from '../types/schemas/policy.schemas.js';
+import { simplePolicyRuleSchema, transformToPolicyAPIFormat } from '../utils/policy-helpers.js';
 import { api } from '../config/netskope-config.js';
 
 interface ApiResponse<T> {
@@ -19,10 +20,10 @@ export const PolicyTools = {
   // Policy Group Operations
   listPolicyGroups: {
     name: 'listPolicyGroups',
-    schema: z.object({}),
-    handler: async (_params?: any) => {
+    schema: z.object({}).describe('List all policy groups'),
+    handler: async () => {
       const result = await api.requestWithRetry<ApiResponse<NPAPolicyGroupResponse>>(
-        '/api/v2/policy/npa/groups'
+        '/api/v2/policy/npa/policygroups'
       );
       return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
@@ -31,14 +32,14 @@ export const PolicyTools = {
   getPolicyGroup: {
     name: 'getPolicyGroup',
     schema: z.object({
-      id: z.number()
+      id: z.number().describe('Policy group ID')
     }),
     handler: async (params?: { id: number }) => {
       if (!params?.id) {
         throw new Error('ID is required');
       }
       const result = await api.requestWithRetry<ApiResponse<NPAPolicyGroupResponse>>(
-        `/api/v2/policy/npa/groups/${params.id}`
+        `/api/v2/policy/npa/policygroups/${params.id}`
       );
       return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
     }
@@ -52,7 +53,7 @@ export const PolicyTools = {
         throw new Error('Policy group data is required');
       }
       const result = await api.requestWithRetry<ApiResponse<NPAPolicyGroupResponse>>(
-        '/api/v2/policy/npa/groups',
+        '/api/v2/policy/npa/policygroups',
         {
           method: 'POST',
           body: JSON.stringify(params)
@@ -71,9 +72,9 @@ export const PolicyTools = {
       }
       const { id, ...data } = params;
       const result = await api.requestWithRetry<ApiResponse<NPAPolicyGroupResponse>>(
-        `/api/v2/policy/npa/groups/${id}`,
+        `/api/v2/policy/npa/policygroups/${id}`,
         {
-          method: 'PUT',
+          method: 'PATCH',
           body: JSON.stringify(data)
         }
       );
@@ -91,7 +92,7 @@ export const PolicyTools = {
         throw new Error('ID is required');
       }
       const result = await api.requestWithRetry<ApiResponse<void>>(
-        `/api/v2/policy/npa/groups/${params.id}`,
+        `/api/v2/policy/npa/policygroups/${params.id}`,
         {
           method: 'DELETE'
         }
@@ -156,18 +157,28 @@ export const PolicyTools = {
 
   createPolicyRule: {
     name: 'createPolicyRule',
-    schema: npaPolicyRequestSchema,
-    handler: async (params: NPAPolicyRequest) => {
-      const silent = false;
-      const queryParams = silent ? '?silent=1' : '';
-      const result = await api.requestWithRetry<ApiResponse<NPAPolicyResponse>>(
-        `/api/v2/policy/npa/rules${queryParams}`,
-        {
-          method: 'POST',
-          body: JSON.stringify(params)
-        }
-      );
-      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+    schema: simplePolicyRuleSchema,
+    handler: async (params: any) => {
+      try {
+        // Transform simplified input to API format
+        const apiPayload = transformToPolicyAPIFormat(params);
+        
+        const result = await api.requestWithRetry<ApiResponse<NPAPolicyResponse>>(
+          '/api/v2/policy/npa/rules',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(apiPayload)
+          }
+        );
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+      } catch (error) {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ 
+          status: 'error', 
+          message: error instanceof Error ? error.message : 'Unknown error',
+          error_details: error
+        }) }] };
+      }
     }
   },
 

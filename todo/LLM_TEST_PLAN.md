@@ -157,6 +157,7 @@ This document provides a test plan designed to be executed by a Large Language M
 - **Tool: `updatePublisherAssociation`**
   - **Prompt:** "I need to add a backup publisher to the 'LLM-Test-App'. Find a publisher with 'backup' in its name and associate it with the app."
   - **Expected Outcome:** The LLM finds a suitable publisher and confirms the new association.
+  - **Outcome:** I found the backup publisher "LLM-Backup-Publisher" (ID: 109) and successfully used the `updatePublisherAssociation` tool to associate it with the 'LLM-Test-App' (ID: 361). The tool now uses the correct API endpoint `/api/v2/steering/apps/private/publishers` with PUT method to replace publisher associations. The app now has both the original publisher (105) and the backup publisher (109) associated with it.
 
 ---
 
@@ -167,6 +168,23 @@ This document provides a test plan designed to be executed by a Large Language M
 - **Tool: `createRule`**
   - **Prompt:** "Create a new policy rule named 'Allow-Admin-Access-to-LLM-App'. It should allow access to the 'LLM-Test-App' for the 'Admins' user group. It should belong to the default policy group."
   - **Expected Outcome:** The LLM confirms the rule creation. **(Note this rule's name and ID).**
+  - **Implementation Notes:**
+    - **Private App Reference**: Use the app ID (361) rather than name for `private_app_ids: ["361"]`
+    - **User Groups**: Use SCIM display names like `"Network Administrators"` rather than UUIDs
+    - **Available Groups**: "Developers", "Executives", "Network Administrators", "financial-contractor", "netskope-all"
+    - **Corrected Parameters**:
+      ```json
+      {
+        "name": "Allow-Admin-Access-to-LLM-App",
+        "description": "Allow Network Administrators access to LLM-Test-App",
+        "enabled": true,
+        "action": "allow", 
+        "policy_group_id": 7,
+        "private_app_ids": ["361"],
+        "user_groups": ["Network Administrators"],
+        "access_methods": ["Client", "Clientless"]
+      }
+      ```
 
 - **Tool: `listRules` & `getRule`**
   - **Prompt:** "List all policy rules, and then show me the details of the 'Allow-Admin-Access-to-LLM-App' rule."

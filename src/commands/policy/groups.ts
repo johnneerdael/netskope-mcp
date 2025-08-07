@@ -27,7 +27,7 @@ export class PolicyGroupCommand extends ResourceCommand<
         delete: PolicyTools.deletePolicyGroup
       },
       {
-        matchField: 'name',
+        matchField: 'group_name', // Updated to match actual API field
         caseSensitive: false,
         throwOnNotFound: true
       }

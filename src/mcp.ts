@@ -121,7 +121,7 @@ export class NetskopeClient {
 
   // Policy Rules
   async createPolicyRule(name: string, groupId: string) {
-    return await commands.createPolicyRule(name, groupId);
+    return await commands.createPolicyRule({ name, policy_group_id: groupId });
   }
 
   async listPolicyRules(options: { limit?: number; sortby?: string; sortorder?: string } = {}) {

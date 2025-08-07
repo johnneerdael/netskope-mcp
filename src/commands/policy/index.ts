@@ -1,16 +1,20 @@
 import { z } from 'zod';
 import { PolicyTools } from '../../tools/policy.js';
+import { simplePolicyRuleSchema } from '../../utils/policy-helpers.js';
+import { createPolicyRuleWithValidation } from '../../utils/policy-validation.js';
 import {
-  npaPolicyRequestSchema,
   NPAPolicyRequest,
   NPAPolicyResponseItem
 } from '../../types/schemas/policy.schemas.js';
 export * from './groups.js';
 
 // Command schemas with descriptions
-const createPolicyRuleSchema = npaPolicyRequestSchema;
-const updatePolicyRuleSchema = npaPolicyRequestSchema.extend({
-  id: z.number().describe('Unique identifier of the policy rule to update')
+const createPolicyRuleSchema = simplePolicyRuleSchema;
+const updatePolicyRuleSchema = z.object({
+  id: z.number().describe('Unique identifier of the policy rule to update'),
+  rule_name: z.string().optional().describe('Updated rule name'),
+  description: z.string().optional().describe('Updated description'),
+  enabled: z.boolean().optional().describe('Enable/disable the rule')
 });
 const policyRuleIdSchema = z.object({
   id: z.number().describe('Unique identifier of the policy rule')
@@ -23,29 +27,16 @@ const listPolicyRulesSchema = z.object({
 }).describe('Options for listing policy rules');
 
 // Command implementations
-export async function createPolicyRule(
-  name: string, 
-  groupId: string, 
-  action: 'allow' | 'block' = 'allow'
-) {
+export async function createPolicyRule(params: any) {
   try {
-    const params = createPolicyRuleSchema.parse({
-      name,
-      policy_group_id: parseInt(groupId, 10),
-      action,
-      enabled: true,
-      priority: 1,
-      conditions: []
-    });
+    // First validate and resolve resource names to IDs
+    const validatedParams = await createPolicyRuleWithValidation(params);
+    
+    // Then validate against the schema
+    const schemaValidatedParams = simplePolicyRuleSchema.parse(validatedParams);
 
-    const result = await PolicyTools.createPolicyRule.handler(params);
-    const data = JSON.parse(result.content[0].text);
-    
-    if (data.status !== 'success') {
-      throw new Error(data.message || 'Failed to create policy rule');
-    }
-    
-    return data.data;
+    const result = await PolicyTools.createPolicyRule.handler(schemaValidatedParams);
+    return result; // Return the MCP format directly
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to create policy rule: ${error.message}`);
@@ -54,43 +45,9 @@ export async function createPolicyRule(
   }
 }
 
-export async function updatePolicyRule(id: number, updates: Partial<NPAPolicyRequest>) {
-  try {
-    // Get existing rule first
-    const existingResult = await PolicyTools.getPolicyRule.handler({ id });
-    const existingData = JSON.parse(existingResult.content[0].text).data;
-    
-    // Merge existing data with updates
-    const params = updatePolicyRuleSchema.parse({
-      id,
-      ...existingData,
-      ...updates,
-      // Ensure required fields are present
-      conditions: updates.conditions || existingData.conditions || [],
-      policy_group_id: updates.policy_group_id || existingData.policy_group_id,
-      priority: updates.priority || existingData.priority,
-      enabled: updates.enabled ?? existingData.enabled,
-      action: updates.action || existingData.action,
-      name: updates.name || existingData.name
-    });
-
-    const result = await PolicyTools.updatePolicyRule.handler({
-      id: params.id,
-      data: params
-    });
-    const data = JSON.parse(result.content[0].text);
-    
-    if (data.status !== 'success') {
-      throw new Error(data.message || 'Failed to update policy rule');
-    }
-    
-    return data.data;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to update policy rule: ${error.message}`);
-    }
-    throw error;
-  }
+export async function updatePolicyRule(id: number, updates: any) {
+  // TODO: Update this function to work with new schema
+  throw new Error('updatePolicyRule temporarily disabled - schema changes in progress');
 }
 
 export async function deletePolicyRule(id: number) {
@@ -160,9 +117,19 @@ export async function listPolicyRules(options: {
 
 // Export command definitions for MCP server
 export const policyCommands = {
-  createPolicyRule: PolicyTools.createPolicyRule,
+  createPolicyRule: {
+    name: 'createPolicyRule',
+    schema: simplePolicyRuleSchema,
+    handler: createPolicyRule // Use our enhanced function with validation
+  },
   updatePolicyRule: PolicyTools.updatePolicyRule,
   deletePolicyRule: PolicyTools.deletePolicyRule,
   getPolicyRule: PolicyTools.getPolicyRule,
-  listPolicyRules: PolicyTools.listPolicyRules
+  listPolicyRules: PolicyTools.listPolicyRules,
+  // Policy Group commands
+  listPolicyGroups: PolicyTools.listPolicyGroups,
+  getPolicyGroup: PolicyTools.getPolicyGroup,
+  createPolicyGroup: PolicyTools.createPolicyGroup,
+  updatePolicyGroup: PolicyTools.updatePolicyGroup,
+  deletePolicyGroup: PolicyTools.deletePolicyGroup
 };

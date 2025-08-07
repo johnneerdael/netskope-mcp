@@ -6,6 +6,8 @@ import {
   NetskopeRawPolicyRule,
   NetskopeNormalizedPolicyRule
 } from '../types/schemas/policy.schemas.netskope.js';
+import { SCIMTools } from '../tools/scim.js';
+import { PrivateAppsTools } from '../tools/private-apps.js';
 
 // ============================================================================
 // VALIDATION RESULT TYPES
@@ -557,4 +559,199 @@ export async function safeValidateAndTransform<T>(
       }
     };
   }
+}
+
+// ============================================================================
+// RESOURCE VALIDATION AND RESOLUTION
+// ============================================================================
+
+/**
+ * Validates and resolves user groups to their display names
+ */
+export async function validateAndResolveUserGroups(groupNames: string[]): Promise<string[]> {
+  const resolvedGroups: string[] = [];
+  
+  for (const groupName of groupNames) {
+    try {
+      // Check if it looks like a UUID (if so, we need to resolve it to display name)
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(groupName);
+      
+      if (isUUID) {
+        // This is a UUID, get all groups and find the display name
+        const allGroupsResult = await SCIMTools.listGroups.handler({});
+        const allGroupsResponse = JSON.parse(allGroupsResult.content[0].text);
+        
+        if (allGroupsResponse.Resources) {
+          const matchingGroup = allGroupsResponse.Resources.find((group: any) => 
+            group.id === groupName || group.externalId === groupName
+          );
+          
+          if (matchingGroup) {
+            resolvedGroups.push(matchingGroup.displayName);
+            continue;
+          } else {
+            throw new Error(`Group with ID '${groupName}' not found. Available groups: ${
+              allGroupsResponse.Resources.map((g: any) => `${g.displayName} (${g.id})`).join(', ')
+            }`);
+          }
+        }
+      } else {
+        // This is a display name, try to search by display name
+        const result = await SCIMTools.searchGroups.handler({
+          displayName: groupName
+        });
+        
+        const response = JSON.parse(result.content[0].text);
+        
+        if (response.Resources && response.Resources.length > 0) {
+          // Found exact match
+          resolvedGroups.push(response.Resources[0].displayName);
+        } else {
+          // Try to find partial matches by listing all groups
+          const allGroupsResult = await SCIMTools.listGroups.handler({});
+          const allGroupsResponse = JSON.parse(allGroupsResult.content[0].text);
+          
+          if (allGroupsResponse.Resources) {
+            const partialMatches = allGroupsResponse.Resources.filter((group: any) =>
+              group.displayName.toLowerCase().includes(groupName.toLowerCase())
+            );
+            
+            if (partialMatches.length > 0) {
+              // Use the first partial match
+              resolvedGroups.push(partialMatches[0].displayName);
+            } else {
+              throw new Error(`Group '${groupName}' not found. Available groups: ${
+                allGroupsResponse.Resources.map((g: any) => g.displayName).join(', ')
+              }`);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      throw new Error(`Failed to validate group '${groupName}': ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+  
+  return resolvedGroups;
+}
+
+/**
+ * Validates and resolves private app names to their IDs
+ */
+export async function validateAndResolvePrivateApps(appNames: string[]): Promise<string[]> {
+  const resolvedAppIds: string[] = [];
+  
+  for (const appName of appNames) {
+    try {
+      // Search for the app by name
+      const result = await PrivateAppsTools.list.handler({
+        query: appName
+      });
+      
+      const response = JSON.parse(result.content[0].text);
+      
+      if (response.data && response.data.private_apps) {
+        const matchingApp = response.data.private_apps.find((app: any) => 
+          app.app_name === appName || app.app_name === `[${appName}]`
+        );
+        
+        if (matchingApp) {
+          resolvedAppIds.push(matchingApp.app_id.toString());
+        } else {
+          throw new Error(`Private app '${appName}' not found. Available apps: ${
+            response.data.private_apps.map((app: any) => app.app_name).join(', ')
+          }`);
+        }
+      } else {
+        throw new Error(`No private apps found or API error: ${response.message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      throw new Error(`Failed to validate private app '${appName}': ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+  
+  return resolvedAppIds;
+}
+
+/**
+ * Validates private app names exist and returns the correct display names
+ */
+export async function validatePrivateAppNames(appNames: string[]): Promise<string[]> {
+  const validatedAppNames: string[] = [];
+  
+  for (const appName of appNames) {
+    try {
+      // Search for the app by name
+      const result = await PrivateAppsTools.list.handler({
+        query: appName
+      });
+      
+      const response = JSON.parse(result.content[0].text);
+      
+      if (response.data && response.data.private_apps) {
+        const matchingApp = response.data.private_apps.find((app: any) => 
+          app.app_name === appName || app.app_name === `[${appName}]`
+        );
+        
+        if (matchingApp) {
+          // Use the exact app name format from the API response
+          const cleanAppName = matchingApp.app_name.startsWith('[') && matchingApp.app_name.endsWith(']') 
+            ? matchingApp.app_name.slice(1, -1) // Remove brackets
+            : matchingApp.app_name;
+          validatedAppNames.push(cleanAppName);
+        } else {
+          throw new Error(`Private app '${appName}' not found. Available apps: ${
+            response.data.private_apps.map((app: any) => app.app_name).join(', ')
+          }`);
+        }
+      } else {
+        throw new Error(`No private apps found or API error: ${response.message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      throw new Error(`Failed to validate private app '${appName}': ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+  
+  return validatedAppNames;
+}
+
+/**
+ * Enhanced policy rule creation with validation
+ */
+export async function createPolicyRuleWithValidation(params: {
+  name: string;
+  description?: string;
+  enabled?: boolean;
+  action?: 'allow' | 'block';
+  policy_group_id: number | string;
+  private_app_names?: string[];
+  user_groups?: string[];
+  access_methods?: ('Client' | 'Clientless')[];
+  priority?: 'top' | 'bottom';
+}) {
+  const validatedParams = { ...params };
+  
+  // Validate and resolve user groups
+  if (params.user_groups && params.user_groups.length > 0) {
+    try {
+      validatedParams.user_groups = await validateAndResolveUserGroups(params.user_groups);
+      console.log(`Resolved user groups: ${validatedParams.user_groups.join(', ')}`);
+    } catch (error) {
+      throw new Error(`User group validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+  
+  // Validate private app names exist (but keep as names, don't convert to IDs)
+  if (params.private_app_names && params.private_app_names.length > 0) {
+    try {
+      // Just validate that the apps exist, but keep the names
+      const validatedAppNames = await validatePrivateAppNames(params.private_app_names);
+      validatedParams.private_app_names = validatedAppNames;
+      console.log(`Validated private app names: ${validatedAppNames.join(', ')}`);
+    } catch (error) {
+      throw new Error(`Private app validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+  
+  return validatedParams;
 }

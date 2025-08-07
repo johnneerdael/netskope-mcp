@@ -38,6 +38,18 @@ export async function getDeviceDiagnostics(deviceId: string, privateAppId: strin
   }
 }
 
+export async function addPublisherAssociation(params: z.infer<typeof publisherAssociationRequestSchema>) {
+  try {
+    const result = await SteeringTools.addPublisherAssociation.handler(params);
+    return result;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to add publisher association: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
 export async function updatePublisherAssociation(params: z.infer<typeof publisherAssociationRequestSchema>) {
   try {
     const result = await SteeringTools.updatePublisherAssociation.handler(params);
@@ -73,6 +85,11 @@ export const steeringCommands = {
     name: 'getDeviceDiagnostics',
     schema: deviceDiagnosticsSchema,
     handler: getDeviceDiagnostics
+  },
+  addPublisherAssociation: {
+    name: 'addPublisherAssociation',
+    schema: publisherAssociationRequestSchema,
+    handler: addPublisherAssociation
   },
   updatePublisherAssociation: {
     name: 'updatePublisherAssociation',
