@@ -163,8 +163,8 @@ export const publisherCommands = {
     handler: deletePublisher
   },
   bulkUpgradePublishers: {
-    name: 'bulkUpgradePublishers',
-    schema: bulkUpgradeRequestSchema,
+    name: 'immediateUpgradePublishers',
+    schema: bulkUpgradeRequestSchema.describe('Immediately upgrade multiple publishers without using upgrade profiles. For assigning publishers to upgrade profiles, use assignPublishersToProfile instead.'),
     handler: bulkUpgradePublishers
   },
   getReleases: {

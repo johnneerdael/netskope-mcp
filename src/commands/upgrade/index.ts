@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { UpgradeProfileTools } from '../../tools/upgrade-profiles.js';
 import { 
   upgradeProfilePostRequestSchema, 
-  upgradeProfilePutRequestSchema
+  upgradeProfilePutRequestSchema,
+  bulkProfileUpdateRequestSchema
 } from '../../types/schemas/upgrade-profiles.schemas.js';
 
 // Command implementations
@@ -78,6 +79,18 @@ export async function upgradeProfileSchedule(params: { id: number; schedule: str
   }
 }
 
+export async function assignPublishersToProfile(params: z.infer<typeof bulkProfileUpdateRequestSchema>) {
+  try {
+    const result = await UpgradeProfileTools.bulkUpdate.handler(params);
+    return result;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to assign publishers to upgrade profile: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
 // Export command definitions for MCP server
 export const upgradeProfileCommands = {
   listUpgradeProfiles: {
@@ -109,5 +122,10 @@ export const upgradeProfileCommands = {
     name: 'upgradeProfileSchedule',
     schema: UpgradeProfileTools.upgradeProfileSchedule.schema,
     handler: upgradeProfileSchedule
+  },
+  assignPublishersToProfile: {
+    name: 'assignPublishersToProfile',
+    schema: bulkProfileUpdateRequestSchema,
+    handler: assignPublishersToProfile
   }
 };

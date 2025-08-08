@@ -9,6 +9,8 @@ import {
   deletionValidationResultSchema,
   smartDeleteResultSchema,
   privateAppIdSchema as privateAppIdSchemaImport,
+  discoverySettingsRequestSchema,
+  patchTagsRequestSchema,
   Protocol,
   TagNoId,
   SmartDeleteOptions,
@@ -397,6 +399,40 @@ export async function updatePrivateAppTags(appIds: string[], tagNames: string[])
   }
 }
 
+/**
+ * Add or update tags for private applications using PATCH method
+ * 
+ * PATCH vs PUT for tags:
+ * - PATCH: Adds/updates specified tags while preserving existing tags
+ * - PUT: Replaces ALL existing tags with only the provided tags
+ * 
+ * IMPORTANT: Requires private app IDs (not names). Use listPrivateApps or searchPrivateApps to find IDs.
+ * The specified tag names will be created if they don't exist.
+ */
+export async function patchPrivateAppTags(appIds: string[], tagNames: string[]) {
+  try {
+    const tags: TagNoId[] = tagNames.map(name => ({ tag_name: name }));
+    const params = patchTagsRequestSchema.parse({
+      ids: appIds,
+      tags
+    });
+
+    const result = await PrivateAppsTools.patchTags.handler(params);
+    const data = JSON.parse(result.content[0].text);
+    
+    if (data.status !== 'success') {
+      throw new Error(data.message || 'Failed to patch private app tags');
+    }
+    
+    return data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to patch private app tags: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
 // MCP command handler for updatePrivateAppPublishers - using updatePrivateApp approach
 async function updatePrivateAppPublishersMcpHandler(params: any) {
   try {
@@ -533,6 +569,38 @@ export async function getDiscoverySettings() {
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to get discovery settings: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Update discovery settings for private applications
+ * 
+ * This configures automatic application discovery which allows Netskope to:
+ * 1. Scan specified host patterns and IP ranges for running applications
+ * 2. Use designated publishers as discovery agents
+ * 3. Allow specified users/groups to perform discovery operations
+ * 
+ * Configuration Steps:
+ * 1. Find publishers to use for discovery (use listPublishers or searchPublishers)
+ * 2. Define host patterns and IP ranges to scan (e.g., "*.internal", "10.0.0.0/8")  
+ * 3. Specify users or user groups who can perform discovery
+ * 4. Enable/disable the discovery feature
+ */
+export async function updateDiscoverySettings(params: z.infer<typeof discoverySettingsRequestSchema>) {
+  try {
+    const result = await PrivateAppsTools.updateDiscoverySettings.handler(params);
+    const data = JSON.parse(result.content[0].text);
+    
+    if (data.status !== 'success') {
+      throw new Error(data.message || 'Failed to update discovery settings');
+    }
+    
+    return data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to update discovery settings: ${error.message}`);
     }
     throw error;
   }
@@ -1002,6 +1070,11 @@ export const privateAppCommands = {
     schema: updateTagsSchema,
     handler: updatePrivateAppTags
   },
+  patchPrivateAppTags: {
+    name: 'patchPrivateAppTags',
+    schema: patchTagsRequestSchema,
+    handler: patchPrivateAppTags
+  },
   updatePrivateAppPublishers: {
     name: 'updatePrivateAppPublishers',
     schema: updatePublishersSchema,
@@ -1014,8 +1087,13 @@ export const privateAppCommands = {
   },
   getDiscoverySettings: {
     name: 'getDiscoverySettings',
-    schema: z.object({}).describe('Get discovery settings for private applications'),
+    schema: z.object({}).describe('Get current private app discovery settings which control automatic application discovery and monitoring'),
     handler: getDiscoverySettings
+  },
+  updateDiscoverySettings: {
+    name: 'updateDiscoverySettings',
+    schema: discoverySettingsRequestSchema,
+    handler: updateDiscoverySettings
   },
   getPolicyInUse: {
     name: 'getPolicyInUse',

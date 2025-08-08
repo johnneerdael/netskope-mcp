@@ -136,7 +136,7 @@ export const UpgradeProfileTools = {
 
   bulkUpdate: {
     name: 'bulkUpgradePublishers',
-    schema: bulkProfileUpdateRequestSchema,
+    schema: bulkProfileUpdateRequestSchema.describe('Assigns multiple publishers to an upgrade profile simultaneously. This endpoint bulk updates publishers to an upgrade profile. Please use the profile external_id value for the profile id requirement.'),
     handler: async (params: z.infer<typeof bulkProfileUpdateRequestSchema>) => {
       const result = await api.requestWithRetry(
         '/api/v2/infrastructure/publisherupgradeprofiles/bulk',

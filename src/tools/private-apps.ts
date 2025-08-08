@@ -10,7 +10,10 @@ import {
   deletionValidationResultSchema,
   policyDependencyAnalysisSchema,
   smartDeleteResultSchema,
-  privateAppIdSchema
+  privateAppIdSchema,
+  discoverySettingsRequestSchema,
+  discoverySettingsResponseSchema,
+  patchTagsRequestSchema
 } from '../types/schemas/private-apps.schemas.js';
 import { api } from '../config/netskope-config.js';
 import { buildQuery, QueryOptions, FILTERABLE_FIELDS } from '../utils/query-builder.js';
@@ -125,6 +128,11 @@ interface PrivateAppsToolsType {
     }>;
     handler: (params: BulkTagsParams) => Promise<{ content: [{ type: 'text'; text: string }] }>;
   };
+  patchTags: {
+    name: 'patchPrivateAppTags';
+    schema: typeof patchTagsRequestSchema;
+    handler: (params: z.infer<typeof patchTagsRequestSchema>) => Promise<{ content: [{ type: 'text'; text: string }] }>;
+  };
   updatePublishers: {
     name: 'updatePrivateAppPublishers';
     schema: z.ZodObject<{
@@ -145,6 +153,11 @@ interface PrivateAppsToolsType {
     name: 'getDiscoverySettings';
     schema: z.ZodObject<{}>;
     handler: (params: Record<string, never>) => Promise<{ content: [{ type: 'text'; text: string }] }>;
+  };
+  updateDiscoverySettings: {
+    name: 'updateDiscoverySettings';
+    schema: typeof discoverySettingsRequestSchema;
+    handler: (params: z.infer<typeof discoverySettingsRequestSchema>) => Promise<{ content: [{ type: 'text'; text: string }] }>;
   };
   getPolicyInUse: {
     name: 'getPolicyInUse';
@@ -489,7 +502,7 @@ export const PrivateAppsTools: PrivateAppsToolsType = {
     schema: z.object({
       ids: z.array(z.string()),
       tags: z.array(tagNoIdSchema)
-    }),
+    }).describe('Bulk replace tags for multiple private applications using PUT method. This REPLACES ALL existing tags with the provided tags.'),
     handler: async (params: BulkTagsParams) => {
       const result = await api.requestWithRetry(
         '/api/v2/steering/apps/private/tags',
@@ -499,6 +512,30 @@ export const PrivateAppsTools: PrivateAppsToolsType = {
         }
       );
       return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+    }
+  },
+
+  patchTags: {
+    name: 'patchPrivateAppTags',
+    schema: patchTagsRequestSchema.describe('Add or update tags for private applications using PATCH method. This ADDS/UPDATES tags while preserving existing tags. IMPORTANT: Requires private app IDs (not names) - use listPrivateApps or searchPrivateApps to find IDs. The tag_name will be created if it does not exist.'),
+    handler: async (params: z.infer<typeof patchTagsRequestSchema>) => {
+      try {
+        const result = await api.requestWithRetry(
+          '/api/v2/steering/apps/private/tags',
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params)
+          }
+        );
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+      } catch (error) {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ 
+          status: 'error', 
+          message: error instanceof Error ? error.message : 'Unknown error occurred while patching tags',
+          error_details: error
+        }) }] };
+      }
     }
   },
 
@@ -578,12 +615,36 @@ export const PrivateAppsTools: PrivateAppsToolsType = {
 
   getDiscoverySettings: {
     name: 'getDiscoverySettings',
-    schema: z.object({}),
+    schema: z.object({}).describe('Get current private app discovery settings which control automatic application discovery and monitoring'),
     handler: async (params: Record<string, never>) => {
       const result = await api.requestWithRetry(
         '/api/v2/steering/apps/private/discoverysettings'
       );
       return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+    }
+  },
+
+  updateDiscoverySettings: {
+    name: 'updateDiscoverySettings',
+    schema: discoverySettingsRequestSchema.describe('Configure private application discovery settings. Discovery allows Netskope to automatically scan and identify applications running on specified networks. IMPORTANT: Before configuring, you must: (1) Find publishers using listPublishers tool, (2) Define host patterns and IP ranges to scan, (3) Specify users/groups who can perform discovery operations.'),
+    handler: async (params: z.infer<typeof discoverySettingsRequestSchema>) => {
+      try {
+        const result = await api.requestWithRetry(
+          '/api/v2/steering/apps/private/discoverysettings',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params)
+          }
+        );
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] };
+      } catch (error) {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ 
+          status: 'error', 
+          message: error instanceof Error ? error.message : 'Unknown error occurred while updating discovery settings',
+          error_details: error
+        }) }] };
+      }
     }
   },
 

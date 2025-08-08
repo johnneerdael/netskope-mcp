@@ -76,11 +76,11 @@ export const upgradeProfilePutRequestSchema = z.object({
 export const bulkProfileUpdateRequestSchema = z.object({
   publishers: z.object({
     apply: z.object({
-      upgrade_request: z.boolean()
-    }),
-    id: z.array(z.string())
-  })
-});
+      publisher_upgrade_profiles_id: z.string().describe('Profile external_id to assign publishers to')
+    }).describe('Profile assignment to apply'),
+    id: z.array(z.string()).describe('Array of publisher IDs to assign to the profile')
+  }).describe('Publishers to assign to upgrade profile')
+}).describe('Request to assign multiple publishers to an upgrade profile');
 
 // Response Schemas
 export const upgradeProfileSchema = z.object({

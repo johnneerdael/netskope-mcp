@@ -275,3 +275,46 @@ export type PolicyDependencyAnalysis = z.infer<typeof policyDependencyAnalysisSc
 export type DeletionValidationResult = z.infer<typeof deletionValidationResultSchema>;
 export type SmartDeleteResult = z.infer<typeof smartDeleteResultSchema>;
 export type PrivateAppId = z.infer<typeof privateAppIdSchema>;
+
+// Discovery Settings Schemas
+export const discoveryPublisherSchema = z.object({
+  publisher_cn: z.string().describe('Publisher common name identifier'),
+  publisher_id: z.string().describe('Publisher ID (use string format as provided by API)'),
+  publisher_name: z.string().describe('Publisher display name')
+}).describe('Publisher configuration for private app discovery');
+
+export const discoverySettingsConfigSchema = z.object({
+  host: z.array(z.string()).describe('Array of host patterns and IP ranges to discover (e.g., ["*.ec3.internal", "*.ec2.internal", "192.168.1.0/24"])'),
+  organization_units: z.array(z.string()).describe('Organization units for discovery scope (typically empty)'),
+  users: z.array(z.string().email()).describe('Email addresses of users who can perform discovery operations'),
+  publishers: z.array(discoveryPublisherSchema).describe('Publishers to use as discovery agents - find available publishers using listPublishers tool'),
+  status: z.enum(['ENABLED', 'DISABLED']).describe('Discovery feature status - set to ENABLED to activate automatic app discovery'),
+  userGroups: z.array(z.string()).describe('User groups allowed to perform discovery (alternative to individual users)')
+}).describe('Private application discovery configuration settings');
+
+export const discoverySettingsRequestSchema = z.object({
+  settings: discoverySettingsConfigSchema.describe('Discovery configuration settings to apply')
+}).describe('Request to configure private app discovery settings. IMPORTANT: Before configuring, you must: (1) Find publishers using listPublishers, (2) Define host patterns/IP ranges to scan, (3) Specify discovery users/groups');
+
+export const discoverySettingsResponseSchema = z.object({
+  data: z.object({
+    settings: discoverySettingsConfigSchema.optional()
+  }).optional(),
+  status: z.enum(['success', 'error']).describe('Response status'),
+  message: z.string().optional().describe('Response message')
+}).describe('Response when retrieving or updating discovery settings');
+
+// Type exports for discovery settings
+export type DiscoveryPublisher = z.infer<typeof discoveryPublisherSchema>;
+export type DiscoverySettingsConfig = z.infer<typeof discoverySettingsConfigSchema>;
+export type DiscoverySettingsRequest = z.infer<typeof discoverySettingsRequestSchema>;
+export type DiscoverySettingsResponse = z.infer<typeof discoverySettingsResponseSchema>;
+
+// PATCH Tags Schema (for adding/updating tags, different from PUT override)
+export const patchTagsRequestSchema = z.object({
+  ids: z.array(z.string()).describe('Array of private app IDs to update with tags. Use private app IDs (not names) - find IDs using listPrivateApps or searchPrivateApps'),
+  tags: z.array(tagNoIdSchema).describe('Array of tags to add/update for the specified apps. Each tag needs only tag_name - the system will handle tag creation if needed')
+}).describe('Request to add or update tags for multiple private applications using PATCH method. PATCH adds/updates tags while preserving existing tags, unlike PUT which replaces all tags.');
+
+// Type export for PATCH tags
+export type PatchTagsRequest = z.infer<typeof patchTagsRequestSchema>;
