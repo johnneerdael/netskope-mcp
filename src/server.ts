@@ -29,7 +29,7 @@ export class NetskopeServer {
   constructor() {
     this.server = new McpServer({
       name: "netskope-mcp",
-      version: "6.2.0"
+      version: "6.3.0"
     });
     this.client = new NetskopeClient({
       baseUrl: process.env.NETSKOPE_BASE_URL,
