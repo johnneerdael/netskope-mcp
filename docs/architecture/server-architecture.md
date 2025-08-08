@@ -64,7 +64,10 @@ export class NetskopeServer {
 
   constructor() {
     this.server = new Server(
-      { name: 'netskope-npa', version: '6.0.0' },
+          // MCP server implementations
+    servers: [
+      { name: 'netskope-npa', version: '6.2.0' },
+    ],,
       { capabilities: { tools: {} } }
     );
     this.setupTools();

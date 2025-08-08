@@ -8,7 +8,7 @@ This documentation is organized into logical sections for easy navigation:
 
 ### 🏗️ Core Architecture
 - [**Server Architecture**](./architecture/server-architecture.md) - MCP server structure and initialization
-- [**API Client**](./architecture/api-client.md) - Netskope API integration patterns
+- [**API Client**](./architecture/api-client.md) - Netskope API integration patterns **← Required token permissions listed here**
 - [**Schema System**](./architecture/schema-system.md) - Zod validation and type safety
 
 ### 🛠️ Tool Categories
@@ -48,6 +48,8 @@ This documentation is organized into logical sections for easy navigation:
 - [**Troubleshooting**](./reference/troubleshooting.md) - Common issues and solutions
 
 ## Quick Start
+
+> **⚠️ Important**: Before setup, ensure your Netskope REST API v2 token has the required permissions. See [**API Client Documentation - Required API Permissions**](./architecture/api-client.md#required-api-permissions) for the complete list of 23 endpoints and permission justifications.
 
 1. **Environment Setup**
    ```bash
