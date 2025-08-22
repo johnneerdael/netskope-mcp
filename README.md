@@ -1,4 +1,5 @@
 # Netskope NPA MCP Server
+[![Trust Score](https://archestra.ai/mcp-catalog/api/badge/quality/johnneerdael/netskope-mcp)](https://archestra.ai/mcp-catalog/johnneerdael__netskope-mcp)
 
 A comprehensive Model Context Protocol (MCP) server for managing Netskope Private Access (NPA) infrastructure through AI-powered automation.
 
